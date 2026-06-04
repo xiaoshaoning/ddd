@@ -1,71 +1,17 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+node_modules/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Environments
+dist-electron/
+release/
+*.js.map
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Project specific
-.pytest_cache/
-ddd_clone.egg-info/
-*.exe
+_generate.py
 *.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+test-results/
+*.swp
+*.un~
+*~
