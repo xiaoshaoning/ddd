@@ -9,7 +9,15 @@ import type { StoppedInfo, Breakpoint, Variable, StackFrame } from './types';
 
 type DebugState = 'idle' | 'running' | 'paused' | 'exited';
 
+type Theme = 'dark' | 'light';
+
+function get_initial_theme(): Theme {
+  const saved = localStorage.getItem('ddd-theme');
+  return (saved === 'light') ? 'light' : 'dark';
+}
+
 function App(): React.ReactElement {
+  const [theme, set_theme] = useState<Theme>(get_initial_theme);
   const [debug_state, set_debug_state] = useState<DebugState>('idle');
   const [program_loaded, set_program_loaded] = useState(false);
   const [source_code, set_source_code] = useState('');
@@ -23,6 +31,16 @@ function App(): React.ReactElement {
   const [status_text, set_status_text] = useState('Ready. Open a program to start debugging.');
 
   const api = window.gdbAPI;
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ddd-theme', theme);
+  }, [theme]);
+
+  const toggle_theme = () => {
+    set_theme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   // ---- Event listeners ----
   useEffect(() => {
@@ -197,6 +215,8 @@ function App(): React.ReactElement {
             current_line={current_line}
             breakpoint_lines={breakpoint_lines}
             on_toggle_breakpoint={handle_toggle_breakpoint}
+            editor_theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+            on_toggle_theme={toggle_theme}
           />
         </Panel>
         <PanelResizeHandle className="resize-handle" />

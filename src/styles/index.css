@@ -4,7 +4,8 @@
   box-sizing: border-box;
 }
 
-:root {
+:root,
+[data-theme="dark"] {
   --bg-primary: #1e1e1e;
   --bg-secondary: #252526;
   --bg-tertiary: #2d2d30;
@@ -20,13 +21,35 @@
   --pause-color: #e5c07b;
   --breakpoint-color: #e06c75;
   --current-line-color: rgba(255, 255, 0, 0.15);
-  --toolbar-height: 40px;
-  --statusbar-height: 28px;
+  --toolbar-height: 48px;
+  --statusbar-height: 32px;
+  --font-size-base: 15px;
+  --font-size-small: 13px;
+  --editor-theme: vs-dark;
+}
+
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f3f3;
+  --bg-tertiary: #e8e8e8;
+  --bg-hover: #dcdcdc;
+  --border-color: #d4d4d4;
+  --text-primary: #1e1e1e;
+  --text-secondary: #616161;
+  --text-muted: #999999;
+  --accent: #0078d4;
+  --accent-hover: #106ebe;
+  --run-color: #388a34;
+  --stop-color: #c72e2e;
+  --pause-color: #b89500;
+  --breakpoint-color: #e51400;
+  --current-line-color: rgba(255, 255, 0, 0.3);
+  --editor-theme: vs;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
+  font-size: var(--font-size-base);
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
@@ -88,13 +111,13 @@ body {
 .toolbar-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: 6px;
+  padding: 6px 14px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-base);
   cursor: pointer;
   white-space: nowrap;
   -webkit-app-region: no-drag;
@@ -138,7 +161,7 @@ body {
 }
 
 .font-size-label {
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--text-secondary);
   margin-right: 4px;
 }
@@ -172,7 +195,7 @@ body {
 }
 
 .font-size-value {
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--text-primary);
   font-family: 'Consolas', monospace;
   min-width: 40px;
@@ -185,6 +208,30 @@ body {
 
 .font-size-value:hover {
   background: var(--bg-hover);
+}
+
+.source-toolbar-spacer {
+  flex: 1;
+}
+
+.theme-btn {
+  width: 32px;
+  height: 26px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  padding: 0;
+  line-height: 1;
+}
+
+.theme-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
 }
 
 .editor-container {
@@ -253,11 +300,12 @@ body {
 
 .tab-btn {
   flex: 1;
-  padding: 8px 4px;
+  padding: 10px 6px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-base);
+  font-weight: 500;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
@@ -293,7 +341,7 @@ body {
   gap: 6px;
   padding: 6px 12px;
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--text-primary);
   cursor: pointer;
   user-select: none;
@@ -316,7 +364,7 @@ body {
 .section-header .count {
   color: var(--text-muted);
   font-weight: normal;
-  font-size: 11px;
+  font-size: var(--font-size-small);
 }
 
 .section-content {
@@ -327,12 +375,12 @@ body {
   color: var(--text-muted);
   font-style: italic;
   padding: 4px 0;
-  font-size: 12px;
+  font-size: var(--font-size-small);
 }
 
 .stack-frame {
   padding: 3px 0;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   display: flex;
   gap: 6px;
   font-family: 'Consolas', monospace;
@@ -349,13 +397,13 @@ body {
 
 .frame-location {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-small);
 }
 
 .var-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   font-family: 'Consolas', monospace;
 }
 
@@ -382,7 +430,7 @@ body {
 
 .var-type {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-small);
 }
 
 /* ---- Breakpoint Manager ---- */
@@ -397,14 +445,14 @@ body {
 }
 
 .empty-panel .hint {
-  font-size: 11px;
+  font-size: var(--font-size-small);
   margin-top: 8px;
 }
 
 .bp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-small);
 }
 
 .bp-table th {
@@ -436,7 +484,7 @@ body {
 .bp-condition {
   color: var(--text-muted);
   font-family: 'Consolas', monospace;
-  font-size: 11px;
+  font-size: var(--font-size-small);
 }
 
 .bp-remove-btn {
@@ -469,7 +517,7 @@ body {
 }
 
 .control-row label {
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--text-secondary);
   min-width: 50px;
 }
@@ -481,7 +529,7 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-family: 'Consolas', monospace;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   border-radius: 3px;
 }
 
@@ -496,7 +544,7 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-small);
   border-radius: 3px;
 }
 
@@ -505,7 +553,7 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-small);
   border-radius: 3px;
 }
 
@@ -514,7 +562,7 @@ body {
   background: var(--accent);
   border: none;
   color: white;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -534,7 +582,7 @@ body {
   border-radius: 3px;
   padding: 8px;
   font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-all;
@@ -552,7 +600,7 @@ body {
   background: var(--accent);
   color: #fff;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--font-size-small);
   flex-shrink: 0;
 }
 

@@ -8,19 +8,26 @@ interface SourceViewerProps {
   current_line: number;
   breakpoint_lines: Set<number>;
   on_toggle_breakpoint: (line: number) => void;
+  editor_theme: string;
+  on_toggle_theme: () => void;
 }
 
-const DEFAULT_FONT_SIZE = 28;
+const DEFAULT_FONT_SIZE = 24;
 const MIN_FONT_SIZE = 10;
 const MAX_FONT_SIZE = 72;
 const FONT_STEP = 2;
 
 export function SourceViewer(props: SourceViewerProps): React.ReactElement {
-  const { source_code, source_file, current_line, breakpoint_lines, on_toggle_breakpoint } = props;
+  const { source_code, source_file, current_line, breakpoint_lines, on_toggle_breakpoint, editor_theme, on_toggle_theme } = props;
   const editor_ref = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monaco_ref = useRef<typeof import('monaco-editor') | null>(null);
   const decorations_ref = useRef<string[]>([]);
   const [font_size, set_font_size] = useState(DEFAULT_FONT_SIZE);
+
+  // Keep a fresh reference to on_toggle_breakpoint so the gutter click
+  // handler always calls the latest version (avoids stale closure)
+  const toggle_bp_ref = useRef(on_toggle_breakpoint);
+  toggle_bp_ref.current = on_toggle_breakpoint;
 
   // Determine language from file extension
   const get_language = (file_path: string): string => {
@@ -60,7 +67,7 @@ export function SourceViewer(props: SourceViewerProps): React.ReactElement {
           e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS) {
         const line_number = e.target.position?.lineNumber;
         if (line_number) {
-          on_toggle_breakpoint(line_number);
+          toggle_bp_ref.current(line_number);
         }
       }
     });
@@ -160,13 +167,17 @@ export function SourceViewer(props: SourceViewerProps): React.ReactElement {
         <button className="font-btn" onClick={decrease_font} title="Decrease font size" disabled={font_size <= MIN_FONT_SIZE}>−</button>
         <span className="font-size-value" onClick={reset_font} title="Click to reset">{font_size}px</span>
         <button className="font-btn" onClick={increase_font} title="Increase font size" disabled={font_size >= MAX_FONT_SIZE}>+</button>
+        <div className="source-toolbar-spacer" />
+        <button className="theme-btn" onClick={on_toggle_theme} title="Toggle light/dark theme">
+          {editor_theme === 'vs-dark' ? '☀️' : '🌙'}
+        </button>
       </div>
       <div className="editor-container">
         <Editor
           height="100%"
           language={get_language(source_file)}
           value={source_code}
-          theme="vs-dark"
+          theme={editor_theme}
           onMount={handle_editor_mount}
           beforeMount={handle_before_mount}
           options={{
