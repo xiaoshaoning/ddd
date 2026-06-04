@@ -36,6 +36,9 @@ function App(): React.ReactElement {
   const source_code_ref = useRef(source_code);
   source_code_ref.current = source_code;
 
+  // Track last debug action to distinguish step-into from step-over
+  const last_action_ref = useRef<'step_into' | 'other'>('other');
+
   // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -72,7 +75,14 @@ function App(): React.ReactElement {
          info.file.includes('/usr/'));
 
       if (is_system_file) {
-        // Stepped into CRT/system code — program is effectively done
+        if (last_action_ref.current === 'step_into') {
+          // Stepped into library code — step back out
+          set_status_text('Stepped into library function, stepping out...');
+          last_action_ref.current = 'other';
+          setTimeout(() => api.step_out(), 50);
+          return;
+        }
+        // Stepped past end of user program into CRT — program is done
         set_debug_state('exited');
         set_status_text('Program finished.');
         set_current_line(-1);
@@ -80,6 +90,7 @@ function App(): React.ReactElement {
         set_stack_frames([]);
         return;
       }
+      last_action_ref.current = 'other';
 
       set_debug_state('paused');
       set_status_text('Program stopped: ' + info.reason);
@@ -174,6 +185,7 @@ function App(): React.ReactElement {
   };
 
   const handle_run = async () => {
+    last_action_ref.current = 'other';
     set_status_text('Starting program...');
     await api.run();
   };
@@ -183,15 +195,18 @@ function App(): React.ReactElement {
   };
 
   const handle_continue = async () => {
+    last_action_ref.current = 'other';
     set_current_line(-1);
     await api.continue();
   };
 
   const handle_step_over = async () => {
+    last_action_ref.current = 'other';
     await api.step_over();
   };
 
   const handle_step_into = async () => {
+    last_action_ref.current = 'step_into';
     await api.step_into();
   };
 
