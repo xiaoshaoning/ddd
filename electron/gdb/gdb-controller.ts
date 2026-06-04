@@ -416,7 +416,13 @@ export class GDBController extends EventEmitter {
   }
 
   async step_out(): Promise<void> {
-    await this.send_command('-exec-finish');
+    try {
+      await this.send_command('-exec-finish');
+    } catch {
+      // -exec-finish fails in outermost frame (e.g. main)
+      // Fall back to step-over instead
+      await this.send_command('-exec-next');
+    }
   }
 
   async set_breakpoint(file: string, line: number, condition?: string):
