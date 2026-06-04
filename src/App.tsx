@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Toolbar } from './components/Toolbar';
 import { SourceViewer } from './components/SourceViewer';
@@ -32,6 +32,10 @@ function App(): React.ReactElement {
 
   const api = window.gdbAPI;
 
+  // Ref for source_code so the event callback always sees the latest value
+  const source_code_ref = useRef(source_code);
+  source_code_ref.current = source_code;
+
   // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -53,26 +57,64 @@ function App(): React.ReactElement {
       if (info.reason.includes('exited')) {
         set_debug_state('exited');
         set_status_text('Program exited: ' + info.reason);
-      } else {
-        set_debug_state('paused');
-        set_status_text('Program stopped: ' + info.reason);
-        if (info.line) {
-          set_current_line(info.line);
-        }
+        set_current_line(-1);
+        set_variables([]);
+        set_stack_frames([]);
+        return;
+      }
 
-        // Refresh state after stopping at breakpoint
-        try {
-          const loc = await api.get_current_location();
-          if (loc && loc.file !== source_file) {
-            set_source_file(loc.file);
-            const code = await api.get_source(loc.file);
+      // Detect if we stepped into system code (past end of user program)
+      const is_system_file = info.file &&
+        (info.file.includes('msys64') ||
+         info.file.includes('mingw') ||
+         info.file.includes('/crt/') ||
+         info.file.includes('/build/') ||
+         info.file.includes('/usr/'));
+
+      if (is_system_file) {
+        // Stepped into CRT/system code — program is effectively done
+        set_debug_state('exited');
+        set_status_text('Program finished.');
+        set_current_line(-1);
+        set_variables([]);
+        set_stack_frames([]);
+        return;
+      }
+
+      set_debug_state('paused');
+      set_status_text('Program stopped: ' + info.reason);
+
+      if (info.line && info.line > 0) {
+        set_current_line(info.line);
+      }
+
+      // Auto-continue if we stepped onto or past the last meaningful line
+      // so the program exits instead of stopping on the final }
+      const lines = source_code_ref.current.trimEnd().split('\n');
+      const total_lines = lines.length;
+      if (info.reason === 'end-stepping-range' &&
+          info.line && info.line >= total_lines) {
+        setTimeout(() => api.continue(), 50);
+        return;
+      }
+
+      // Refresh state after stopping at breakpoint
+      try {
+        const loc = await api.get_current_location();
+        if (loc && loc.file && loc.file !== source_file &&
+            !loc.file.includes('msys64') &&
+            !loc.file.includes('mingw') &&
+            !loc.file.includes('/crt/')) {
+          set_source_file(loc.file);
+          const code = await api.get_source(loc.file);
+          if (code) {
             set_source_code(code);
           }
-          if (loc) set_current_line(loc.line);
-        } catch { /* ignore */ }
+        }
+        if (loc && loc.line && loc.line > 0) set_current_line(loc.line);
+      } catch { /* ignore */ }
 
-        refresh_debug_info();
-      }
+      refresh_debug_info();
     });
 
     const unsub_running = api.on_running(() => {

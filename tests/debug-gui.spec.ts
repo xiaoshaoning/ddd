@@ -12,17 +12,16 @@ test.describe('DDD Debugger GUI', () => {
     const toolbar = page.locator('.toolbar');
     await expect(toolbar).toBeVisible();
 
-    // Check all debug control buttons are present
+    // Check all debug control buttons are present (Run/Continue combined into one)
     const buttons = toolbar.locator('.toolbar-btn');
     const count = await buttons.count();
-    expect(count).toBeGreaterThanOrEqual(8);
+    expect(count).toBeGreaterThanOrEqual(7);
 
     // Verify specific buttons
     await expect(page.locator('.toolbar-btn:has-text("Open")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Stop")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Run")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Pause")')).toBeVisible();
-    await expect(page.locator('.toolbar-btn:has-text("Continue")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Step Over")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Step Into")')).toBeVisible();
     await expect(page.locator('.toolbar-btn:has-text("Step Out")')).toBeVisible();

@@ -33,6 +33,12 @@ export function Toolbar(props: ToolbarProps): React.ReactElement {
   const is_paused = debug_state === 'paused';
   const is_exited = debug_state === 'exited';
 
+  // Combined Run/Continue: Run at idle, Continue when paused
+  const run_continue_label = is_paused ? '⏭ Continue' : '▶ Run';
+  const run_continue_title = is_paused ? 'Continue (F5)' : 'Run (F5)';
+  const run_continue_action = is_paused ? on_continue : on_run;
+  const run_continue_disabled = !program_loaded || is_running;
+
   return (
     <div className="toolbar">
       <div className="toolbar-group">
@@ -54,11 +60,11 @@ export function Toolbar(props: ToolbarProps): React.ReactElement {
       <div className="toolbar-group">
         <button
           className="toolbar-btn run-btn"
-          onClick={on_run}
-          disabled={!program_loaded || is_running}
-          title="Run (F5)"
+          onClick={run_continue_action}
+          disabled={run_continue_disabled}
+          title={run_continue_title}
         >
-          ▶ Run
+          {run_continue_label}
         </button>
         <button
           className="toolbar-btn"
@@ -67,14 +73,6 @@ export function Toolbar(props: ToolbarProps): React.ReactElement {
           title="Pause"
         >
           ⏸ Pause
-        </button>
-        <button
-          className="toolbar-btn"
-          onClick={on_continue}
-          disabled={!is_paused}
-          title="Continue (F5)"
-        >
-          ⏭ Continue
         </button>
       </div>
 
