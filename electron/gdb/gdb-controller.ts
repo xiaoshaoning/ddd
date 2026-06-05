@@ -533,11 +533,26 @@ export class GDBController extends EventEmitter {
 
   async evaluate_expression(expression: string): Promise<{ value: string; type: string } | null> {
     try {
-      const result = await this.send_command(
-        '-data-evaluate-expression', '"' + expression + '"'
+      // Use -var-create to get both value and type
+      const create_result = await this.send_command(
+        '-var-create', '-', '*', '"' + expression + '"'
       ) as Record<string, string> | null;
-      if (result && result.value) {
-        return { value: result.value, type: result.type || 'unknown' };
+
+      if (create_result && create_result.value !== undefined) {
+        const var_name = create_result.name;
+        const result = {
+          value: create_result.value || '',
+          type: create_result.type || 'unknown',
+        };
+
+        // Clean up the variable object
+        if (var_name) {
+          try {
+            await this.send_command('-var-delete', var_name);
+          } catch { /* ignore cleanup errors */ }
+        }
+
+        return result;
       }
       return null;
     } catch {
