@@ -10,6 +10,7 @@ interface SourceViewerProps {
   on_toggle_breakpoint: (line: number) => void;
   editor_theme: string;
   on_toggle_theme: () => void;
+  on_evaluate_expression: (expr: string) => Promise<{ value: string; type: string } | null>;
 }
 
 const DEFAULT_FONT_SIZE = 24;
@@ -18,7 +19,7 @@ const MAX_FONT_SIZE = 72;
 const FONT_STEP = 2;
 
 export function SourceViewer(props: SourceViewerProps): React.ReactElement {
-  const { source_code, source_file, current_line, breakpoint_lines, on_toggle_breakpoint, editor_theme, on_toggle_theme } = props;
+  const { source_code, source_file, current_line, breakpoint_lines, on_toggle_breakpoint, editor_theme, on_toggle_theme, on_evaluate_expression } = props;
   const editor_ref = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monaco_ref = useRef<typeof import('monaco-editor') | null>(null);
   const decorations_ref = useRef<string[]>([]);
@@ -71,6 +72,53 @@ export function SourceViewer(props: SourceViewerProps): React.ReactElement {
         }
       }
     });
+
+    // Register hover provider for variable value tooltips
+    const hover_disposable = monaco.languages.registerHoverProvider('*', {
+      provideHover: async (model, position) => {
+        const word = model.getWordAtPosition(position);
+        if (!word) return null;
+
+        const var_name = word.word;
+        // Skip keywords and very short tokens
+        if (/^(if|else|for|while|return|int|char|void|float|double|struct|const|static|sizeof|include|define)$/.test(var_name)) {
+          return null;
+        }
+
+        try {
+          const result = await on_evaluate_expression(var_name);
+          if (!result) return null;
+
+          let contents = `**${var_name}**  \n${result.value}`;
+          if (result.type) {
+            contents += `  \n*type: ${result.type}*`;
+          }
+
+          // For pointer/array types, show first few elements
+          if (result.type && (result.type.includes('*') || result.type.includes('['))) {
+            const arr_result = await on_evaluate_expression(`*${var_name}@10`);
+            if (arr_result && arr_result.value && arr_result.value !== result.value) {
+              // Parse array values from GDB output like "{1, 2, 3, 4, 5}"
+              const array_vals = arr_result.value;
+              contents += `\n\n---\n**First elements:**  \n${array_vals}`;
+            }
+          }
+
+          return {
+            range: new monaco.Range(
+              position.lineNumber, word.startColumn,
+              position.lineNumber, word.endColumn
+            ),
+            contents: [{ value: contents }],
+          };
+        } catch {
+          return null;
+        }
+      },
+    });
+
+    // Store disposable for cleanup (though editor lifetime matches component)
+    editor_instance.onDidDispose(() => hover_disposable.dispose());
 
     update_decorations();
   };

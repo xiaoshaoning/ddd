@@ -298,6 +298,7 @@ function App(): React.ReactElement {
             on_toggle_breakpoint={handle_toggle_breakpoint}
             editor_theme={theme === 'dark' ? 'vs-dark' : 'vs'}
             on_toggle_theme={toggle_theme}
+            on_evaluate_expression={(expr: string) => api.evaluate_expression(expr)}
           />
         </Panel>
         <PanelResizeHandle className="resize-handle" />
