@@ -99,14 +99,25 @@ function App(): React.ReactElement {
         set_current_line(info.line);
       }
 
-      // Auto-continue if we stepped onto or past the last meaningful line
-      // so the program exits instead of stopping on the final }
-      const lines = source_code_ref.current.trimEnd().split('\n');
-      const total_lines = lines.length;
-      if (info.reason === 'end-stepping-range' &&
-          info.line && info.line >= total_lines) {
-        setTimeout(() => api.continue(), 50);
-        return;
+      // Auto-continue if we stepped onto a closing brace or past the last line.
+      // This makes step-over on "return" go back to the caller instead of
+      // stopping on the "}" of the current function.
+      const src = source_code_ref.current;
+      if (src && info.reason === 'end-stepping-range' && info.line && info.line > 0) {
+        const lines = src.split('\n');
+        const total_lines = lines.length;
+        const idx = info.line - 1;
+        const raw_line = (idx >= 0 && idx < total_lines) ? lines[idx] : '';
+        const trimmed = raw_line.trim();
+        const is_closing_brace = trimmed === '}' || trimmed === '};' || trimmed === '';
+
+        if (info.line > total_lines || is_closing_brace) {
+          set_status_text('Stepping out of function...');
+          // Use step_over to advance from "}" to the caller's next line,
+          // rather than continue which runs to next breakpoint or exit
+          api.step_over();
+          return;
+        }
       }
 
       // Refresh state after stopping at breakpoint

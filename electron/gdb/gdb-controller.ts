@@ -304,15 +304,19 @@ export class GDBController extends EventEmitter {
     const reason_match = line.match(/reason="([^"]*)"/);
     if (reason_match) info.reason = reason_match[1];
 
-    const frame_match = line.match(/frame=\{([^}]*)\}/);
+    // Parse frame, handling nested braces in args=[{...},{...}]
+    const frame_match = line.match(/frame=\{([\s\S]*)\},thread-id=/);
     if (frame_match) {
       const frame_str = frame_match[1];
       const file_match = frame_str.match(/fullname="([^"]*)"/);
+      const short_file = frame_str.match(/file="([^"]*)"/);
       const line_match = frame_str.match(/line="([^"]*)"/);
       if (file_match) info.file = file_match[1];
+      else if (short_file) info.file = short_file[1];
       if (line_match) info.line = parseInt(line_match[1]);
     }
 
+    // Fallback: search entire line
     if (!info.file) {
       const fm = line.match(/file="([^"]*)"/);
       if (fm) info.file = fm[1];
