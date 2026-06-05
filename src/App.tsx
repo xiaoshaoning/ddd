@@ -178,6 +178,13 @@ function App(): React.ReactElement {
     if (!file_path) return;
 
     set_status_text('Loading program: ' + file_path);
+    // Clear state from previous session
+    set_breakpoints([]);
+    set_breakpoint_lines(new Set());
+    set_variables([]);
+    set_stack_frames([]);
+    set_current_line(-1);
+
     const ok = await api.start(file_path);
     if (ok) {
       set_program_loaded(true);
@@ -230,6 +237,12 @@ function App(): React.ReactElement {
     set_debug_state('idle');
     set_program_loaded(false);
     set_source_code('');
+    set_source_file('');
+    set_current_line(-1);
+    set_breakpoints([]);
+    set_breakpoint_lines(new Set());
+    set_variables([]);
+    set_stack_frames([]);
     set_status_text('Debug session ended.');
   };
 
