@@ -2,6 +2,19 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { GDBController } from './gdb/gdb-controller';
 
+// Prevent multiple instances
+const got_lock = app.requestSingleInstanceLock();
+if (!got_lock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 let mainWindow: BrowserWindow | null = null;
 let gdbController: GDBController | null = null;
 

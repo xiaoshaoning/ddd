@@ -135,12 +135,14 @@ export class GDBController extends EventEmitter {
       } catch {
         // ignore
       }
+      // Give GDB a moment to exit gracefully, then force kill if needed
+      const proc = this.process;
       setTimeout(() => {
-        if (this.process) {
-          this.process.kill();
-          this.process = null;
+        if (proc && proc.exitCode === null) {
+          try { proc.kill(); } catch { /* already dead */ }
         }
       }, 1000);
+      this.process = null;
     }
     this.pending_commands.clear();
     this.breakpoints.clear();

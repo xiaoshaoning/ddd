@@ -4,8 +4,8 @@
   "description": "A graphical debugger frontend for GDB, built with Electron, React, TypeScript, and Monaco Editor",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "dev:electron": "vite --host",
+    "dev": "node scripts/dev.js",
+    "dev:electron": "node scripts/dev-electron.js",
     "build": "tsc && vite build",
     "lint": "eslint src/ --ext .ts,.tsx",
     "test": "npx playwright test --reporter=list",
