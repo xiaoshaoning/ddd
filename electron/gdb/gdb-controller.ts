@@ -663,4 +663,32 @@ export class GDBController extends EventEmitter {
       return 'Error: ' + (err as Error).message;
     }
   }
+
+  async send_cli_command(command: string): Promise<string> {
+    try {
+      // Collect console output that arrives between the command and its response.
+      // -interpreter-exec console sends ~"..." records as separate async lines,
+      // not embedded in the ^done response.
+      const output_parts: string[] = [];
+      const orig_emit = this.emit.bind(this);
+      const on_output = (data: string) => {
+        output_parts.push(data);
+      };
+      // Listen for output events during the command
+      this.on('output', on_output);
+
+      try {
+        await this.send_command(
+          '-interpreter-exec', 'console',
+          '"' + command.replace(/"/g, '\\"') + '"'
+        );
+      } finally {
+        this.off('output', on_output);
+      }
+
+      return output_parts.join('') || '(no output)';
+    } catch (err: unknown) {
+      return 'Error: ' + (err as Error).message;
+    }
+  }
 }

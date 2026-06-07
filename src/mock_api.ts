@@ -184,6 +184,11 @@ class MockGDBAPI implements GDBAPI {
     return 'demo_program';
   }
 
+  async send_cli_command(command: string): Promise<string> {
+    console.log('[Mock] CLI command:', command);
+    return '(mock) ' + command + '\n= 42';
+  }
+
   private add_listener(event: string, callback: Listener): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);

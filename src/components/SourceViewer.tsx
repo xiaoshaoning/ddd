@@ -125,6 +125,47 @@ export function SourceViewer(props: SourceViewerProps): React.ReactElement {
 
   const handle_before_mount: BeforeMount = (monaco) => {
     monaco_ref.current = monaco;
+
+    // Define biogoo color scheme for Monaco Editor
+    monaco.editor.defineTheme('biogoo', {
+      base: 'vs',
+      inherit: false,
+      rules: [
+        { token: 'comment', foreground: '0000ba' },
+        { token: 'string', foreground: 'd11518' },
+        { token: 'number', foreground: 'cc6600' },
+        { token: 'keyword', foreground: '00007f' },
+        { token: 'type', foreground: '660066', fontStyle: 'bold' },
+        { token: 'type.identifier', foreground: '007a00' },
+        { token: 'identifier', foreground: '000000' },
+        { token: 'function', foreground: '7f0000' },
+        { token: 'delimiter', foreground: '00007f' },
+        { token: 'tag', foreground: '00007f' },
+        { token: 'predefined', foreground: '295498', fontStyle: 'bold' },
+        { token: 'constant', foreground: '0000ff' },
+        { token: 'variable', foreground: '007a00' },
+        { token: 'operator', foreground: '00007f' },
+        { token: 'attribute.name', foreground: 'cc6600' },
+        { token: 'delimiter.html', foreground: '404040' },
+        { token: 'metatag', foreground: 'cc6600' },
+      ],
+      colors: {
+        'editor.background': '#d6d6d6',
+        'editor.foreground': '#000000',
+        'editor.lineHighlightBackground': '#ffffff',
+        'editor.selectionBackground': '#7f7f7f',
+        'editor.selectionForeground': '#ffffff',
+        'editorLineNumber.foreground': '#303030',
+        'editorLineNumber.background': '#e5e5e5',
+        'editorCursor.foreground': '#00007f',
+        'editor.inactiveSelectionBackground': '#b0b0b0',
+        'editorWidget.background': '#e5e5e5',
+        'editorWidget.border': '#b0b0b0',
+        'input.background': '#ffffff',
+        'input.foreground': '#000000',
+        'input.border': '#b0b0b0',
+      },
+    });
   };
 
   const increase_font = () => {

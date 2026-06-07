@@ -19,11 +19,8 @@ gdb --version
 ## Installation
 
 ```bash
-# Clone the repository
 git clone <repository-url>
 cd ddd
-
-# Install dependencies
 npm install
 
 # If Electron binary download fails due to network restrictions,
@@ -35,113 +32,139 @@ npm install
 
 ### Browser Mode (no GDB required)
 
-Run the React UI in your browser with a mock debug session:
-
 ```bash
 npm run dev
 ```
 
-Open **http://localhost:5173** in your browser. The app loads with demo C source code, simulated variables, and mock breakpoints. Use this mode for UI development and testing.
+Open **http://localhost:5173**. Uses a mock debug session with demo C code. Ideal for UI development and testing.
 
 ### Desktop Mode (with GDB)
 
-Launch the full Electron desktop application:
-
 ```bash
-npx vite
+npm run dev:electron
 ```
 
-This command:
-1. Starts the Vite dev server for hot-reload
-2. Builds the Electron main process
-3. Launches the Electron window
+This starts the Vite dev server, builds the Electron main process, and launches the desktop window with full GDB integration.
+
+## Running Tests
+
+```bash
+npm test                # Run all 25 headless browser tests
+npx playwright test --ui  # Run with Playwright UI
+```
 
 ## Loading a Program
 
 1. Click the **Open** button in the toolbar
-2. Select an executable compiled with debug symbols (use `-g` flag with gcc/clang)
-3. The source code appears in the main editor panel
-
-Example: compile a C program for debugging:
+2. Select an executable compiled with debug symbols (`-g` flag)
+3. Source code appears in the editor; set breakpoints, then click Run
 
 ```bash
 gcc -g -o my_program my_program.c
 ```
 
+Test programs are provided in `tests/`:
+- `hello.exe` - simple arithmetic and printf
+- `func_test.exe` - nested function calls (multiply, add, compute)
+- `recurse_test.exe` - recursive functions (factorial, fibonacci)
+
 ## Interface Layout
 
 ```
-+-----------------------------------------------------------+
-| Open  Stop  |  Run  Pause  Continue                        |
-|             |  Step Over  Step Into  Step Out              |
-+-----------------------------------------------------------+
-|                        |  [Variables | Breakpoints | Mem]  |
-|    Source Code         |  ---------------------------------|
-|    (Monaco Editor)     |  Local variables and call stack   |
-|                        |  or breakpoint list               |
-|                        |  or memory viewer                 |
-+-----------------------------------------------------------+
-| (status indicator) Ready. Open a program to start.         |
-+-----------------------------------------------------------+
++------------------------------------------------------------------+
+| Open  Stop  |  Run/Continue  Pause  |  Step Over  Step Into  Step Out |
++------------------------------------------------------------------+
+| Font: [-] 24px [+]  ☀️  |  [Variables | Breakpoints | Memory]      |
++--------------------------+----------------------------------------+
+|                          |  Local variables:                      |
+|   Source Code            |    a = 10     int                      |
+|   (Monaco Editor)        |    b = 20     int                      |
+|                          |  Call Stack:                          |
+|                          |    #0 main  at hello.c:10             |
++--------------------------+----------------------------------------+
+| ● Ready. Open a program to start.                                 |
++------------------------------------------------------------------+
 ```
 
-- **Toolbar** (top): All debug control buttons
-- **Source Viewer** (left, ~70%): Monaco Editor with syntax highlighting, line numbers, and breakpoint gutter
+- **Toolbar** (top): Debug control buttons
+- **Source Toolbar**: Font size controls and theme toggle
+- **Source Viewer** (left, ~70%): Monaco Editor with syntax highlighting, line numbers, breakpoint gutter, and hover tooltips
 - **Side Panel** (right, ~30%): Tabbed view for variables, breakpoints, and memory
-- **Status Bar** (bottom): Current debug state indicator
-- **Resize Handle**: Drag the divider between panels to resize
+- **Status Bar** (bottom): Debug state indicator with color-coded status
+- **Resize Handle**: Drag the divider between panels
 
 ## Debug Controls
 
-| Button | Shortcut | Description |
+Run and Continue are combined into a single button that changes based on debug state:
+
+| State | Button Shows | Action |
 |---|---|---|
-| Run | F5 | Start program execution until a breakpoint or exit |
-| Pause | - | Interrupt a running program |
-| Continue | F5 | Resume execution after a breakpoint |
-| Step Over | F10 | Execute current line; step over function calls |
-| Step Into | F11 | Step into function calls on the current line |
-| Step Out | Shift+F11 | Run until the current function returns |
-| Stop | - | End the debug session |
+| Idle (loaded, not started) | Run | Start program |
+| Paused (at breakpoint) | Continue | Resume execution |
+| Running | Run (disabled) | - |
+| Exited | Run | Restart program |
+
+| Button | Description | GDB Command |
+|---|---|---|
+| Pause | Interrupt running program | `-exec-interrupt` (Ctrl+C) |
+| Step Over | Execute current line; step over function calls | `-exec-next` |
+| Step Into | Step into function calls | `-exec-step` |
+| Step Out | Run until current function returns | `-exec-finish` |
+| Stop | End debug session, clear all state | `-gdb-exit` |
+
+### Step Button Behaviors
+
+**Step Over** on a `return` statement auto-skips the closing brace and returns to the caller. No need to click twice.
+
+**Step Into** on library calls (like `printf`): If GDB lands in system code without source, the debugger automatically steps back out to your code.
+
+**Step Out** inside `main()`: Since there is no caller, falls back to Step Over.
+
+Full specification: `docs/STEP_BEHAVIOR_SPEC.md`
 
 ## Breakpoints
 
 ### Setting Breakpoints
 
-Click in the **line number gutter** (left margin of the source editor) to toggle a breakpoint on that line. A red circle glyph appears in the gutter.
+Click in the **line number gutter** to toggle a breakpoint. A red circle glyph appears.
 
 ### Managing Breakpoints
 
-Switch to the **Breakpoints** tab in the side panel to:
+Switch to the **Breakpoints** tab to:
 - View all breakpoints with file name, line number, and condition
-- Remove individual breakpoints by clicking the remove button
+- Remove individual breakpoints
 
-### Conditional Breakpoints
-
-Conditional breakpoint support is planned for a future release.
+Breakpoints are cleared when you Stop or open a new program.
 
 ## Variable Inspection
 
-When the program is paused at a breakpoint:
+When paused at a breakpoint:
 
-1. Switch to the **Variables** tab in the side panel
-2. Local variables are displayed in a table with **Name**, **Value**, and **Type** columns
-3. The **Call Stack** section shows the current execution stack with function names and file locations
-
-Click the call stack section header to collapse or expand it.
+1. Switch to the **Variables** tab
+2. Local variables shown with **Name**, **Value**, and **Type** columns
+3. **Call Stack** shows current execution stack; click header to collapse/expand
+4. **Hover** over any variable name in the source editor to see its value in a tooltip, including type information and first elements of arrays
 
 ## Memory Viewer
 
-Inspect raw memory and disassembly:
-
 1. Switch to the **Memory** tab
-2. Enter an address (e.g., `0x400000` or `&variable_name`)
-3. Set the length (number of bytes for hex dump, or instructions for disassembly)
-4. Choose mode: **Hex Dump** or **Disassembly**
-5. Click **Read**
+2. Enter an address (`0x400000` or `&variable_name`)
+3. Set length and choose **Hex Dump** or **Disassembly**
+4. Click **Read**
+
+## Editor Customization
+
+### Font Size
+
+Use the **[-] / [+]** buttons in the source toolbar to adjust font size (10-72px, default 24px). Click the number to reset to default.
+
+### Theme
+
+Click the **☀️/🌙** button in the source toolbar to toggle between dark and light themes. Preference is saved.
 
 ## Syntax Highlighting
 
-Monaco Editor automatically detects the language based on the source file extension:
+Monaco Editor auto-detects language by file extension:
 
 | Extension | Language |
 |---|---|
@@ -153,55 +176,59 @@ Monaco Editor automatically detects the language based on the source file extens
 | `.js`, `.ts` | JavaScript / TypeScript |
 | `.java` | Java |
 | `.cs` | C# |
-| `.rb` | Ruby |
-
-## Current Line Indicator
-
-When execution pauses, the current line is highlighted in yellow. A blue arrow glyph appears in the gutter pointing to the current line. The editor automatically scrolls to keep this line centered.
 
 ## Status Bar Indicators
 
 | Color | State | Description |
 |---|---|---|
-| Gray | idle | No program loaded, or program loaded but not running |
-| Green (pulsing) | running | Program is executing |
-| Yellow | paused | Program stopped at breakpoint or after stepping |
-| Red | exited | Program has terminated |
+| Gray | idle | No program loaded |
+| Green (pulsing) | running | Program executing |
+| Yellow | paused | Stopped at breakpoint or after step |
+| Red | exited | Program finished |
 
 ## Building for Distribution
 
 ```bash
-# Build the renderer and Electron main process
 npm run build
-
-# Package as a desktop application
 npx electron-builder
 ```
 
-Output is placed in the `release/` directory.
+Output: `release/` directory.
 
 ## Project Architecture
 
 ```
 ddd/
-├── electron/              # Electron main process
-│   ├── main.ts            # Window creation, IPC handlers
-│   ├── preload.ts         # Context bridge API (gdbAPI)
+├── electron/                  # Electron main process
+│   ├── main.ts                # Window, IPC handlers, single-instance lock
+│   ├── preload.ts             # contextBridge API (gdbAPI)
 │   └── gdb/
-│       └── gdb-controller.ts  # GDB/MI protocol communication
-├── src/                   # React renderer process
-│   ├── main.tsx           # Entry point with mock API injection
-│   ├── App.tsx            # Main layout and state management
-│   ├── mock_api.ts        # Mock GDB API for browser development
-│   ├── types.ts           # TypeScript interface definitions
+│       └── gdb-controller.ts  # GDB/MI protocol, spawn, parse, commands
+├── src/                       # React renderer
+│   ├── main.tsx               # Entry point, mock API injection
+│   ├── App.tsx                # Layout, state machine, event wiring
+│   ├── mock_api.ts            # Mock GDB for browser dev
+│   ├── types.ts               # TypeScript interfaces
 │   ├── components/
-│   │   ├── Toolbar.tsx         # Debug control buttons
-│   │   ├── SourceViewer.tsx    # Monaco Editor wrapper
-│   │   ├── BreakpointManager.tsx  # Breakpoint list table
-│   │   ├── VariableInspector.tsx  # Variable and stack display
-│   │   └── MemoryViewer.tsx    # Memory hex dump / disassembly
+│   │   ├── Toolbar.tsx             # Combined Run/Continue, debug buttons
+│   │   ├── SourceViewer.tsx        # Monaco Editor, hover tooltips, font/theme
+│   │   ├── BreakpointManager.tsx   # Breakpoint table
+│   │   ├── VariableInspector.tsx   # Variables + call stack
+│   │   └── MemoryViewer.tsx        # Hex dump / disassembly
 │   └── styles/
-│       └── index.css      # Dark theme stylesheet
+│       └── index.css          # Dark + light theme, CSS variables
+├── scripts/                   # Dev launchers with stderr filtering
+│   ├── dev.js                 # Browser mode
+│   └── dev-electron.js        # Electron desktop mode
+├── tests/                     # Test suite
+│   ├── debug-gui.spec.ts      # 10 core UI tests
+│   ├── step-behavior.spec.ts  # 15 step button behavior tests
+│   ├── hello.c / hello.exe
+│   ├── func_test.c / func_test.exe
+│   └── recurse_test.c / recurse_test.exe
+├── docs/
+│   ├── USAGE.md               # This document
+│   └── STEP_BEHAVIOR_SPEC.md  # Step button specification
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -210,37 +237,37 @@ ddd/
 
 ## GDB / MI Protocol
 
-The GDB controller communicates with GDB using the Machine Interface (MI) protocol. Key commands used:
-
 | MI Command | Purpose |
 |---|---|
-| `-exec-run` | Start program execution |
+| `-exec-run` | Start program |
 | `-exec-continue` | Continue after breakpoint |
-| `-exec-next` | Step over current line |
-| `-exec-step` | Step into function call |
-| `-exec-finish` | Step out of current function |
-| `-exec-interrupt` | Pause running program |
-| `-break-insert` | Set a breakpoint |
-| `-break-delete` | Remove a breakpoint |
-| `-break-list` | List all breakpoints |
+| `-exec-next` | Step over |
+| `-exec-step` | Step into |
+| `-exec-finish` | Step out |
+| `-exec-interrupt` | Pause program |
+| `-break-insert` | Set breakpoint |
+| `-break-delete` | Remove breakpoint |
+| `-break-list` | List breakpoints |
 | `-stack-list-frames` | Get call stack |
 | `-stack-list-variables` | Get local variables |
-| `-data-evaluate-expression` | Evaluate an expression |
+| `-var-create` | Evaluate expression with type |
+| `-var-delete` | Clean up variable object |
 | `-data-read-memory` | Read raw memory |
+| `-file-list-exec-source-files` | Detect source files |
 
 ## Troubleshooting
 
-### Electron fails to download
+### Console noise on Windows
 
-If the Electron binary download fails with a certificate error, use a mirror:
+If you see `"The process X not found"` messages on startup, use `npm run dev` or `npm run dev:electron` which filter this harmless vite-plugin-electron noise.
+
+### Electron fails to download
 
 ```bash
 ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install electron
 ```
 
 ### GDB not found
-
-Ensure GDB is installed and available in your system PATH:
 
 ```bash
 where gdb          # Windows
@@ -249,23 +276,22 @@ which gdb          # Linux / macOS
 
 ### Source code not displayed
 
-Make sure your program is compiled with debug symbols:
+Compile with debug symbols:
 
 ```bash
-gcc -g -o program program.c      # C
-g++ -g -o program program.cpp    # C++
+gcc -g -o program program.c
 ```
 
 ### Port already in use
 
-If port 5173 is occupied, Vite automatically uses the next available port (5174, 5175, etc.). Check the terminal output for the actual URL.
+Vite auto-uses the next available port (5174, 5175, ...).
 
 ## Coding Standards
 
-- **snake_case** for all variables, function names, and method names
-- **PascalCase** for React component names and TypeScript interfaces
+- **snake_case** for all variables, functions, and methods
+- **PascalCase** for React components and TypeScript interfaces
 - No Chinese characters in comments or console output
-- All public GDB API methods use snake_case (e.g., `step_over`, `set_breakpoint`)
+- All public GDB API methods use snake_case (`step_over`, `set_breakpoint`, etc.)
 
 ## License
 

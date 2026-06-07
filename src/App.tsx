@@ -5,15 +5,17 @@ import { SourceViewer } from './components/SourceViewer';
 import { BreakpointManager } from './components/BreakpointManager';
 import { VariableInspector } from './components/VariableInspector';
 import { MemoryViewer } from './components/MemoryViewer';
+import { GDBShell } from './components/GDBShell';
 import type { StoppedInfo, Breakpoint, Variable, StackFrame } from './types';
 
 type DebugState = 'idle' | 'running' | 'paused' | 'exited';
 
-type Theme = 'dark' | 'light';
+type Theme = 'biogoo' | 'dark';
 
 function get_initial_theme(): Theme {
   const saved = localStorage.getItem('ddd-theme');
-  return (saved === 'light') ? 'light' : 'dark';
+  if (saved === 'dark') return 'dark';
+  return 'biogoo';
 }
 
 function App(): React.ReactElement {
@@ -29,6 +31,7 @@ function App(): React.ReactElement {
   const [stack_frames, set_stack_frames] = useState<StackFrame[]>([]);
   const [active_tab, set_active_tab] = useState<'variables' | 'breakpoints' | 'memory'>('variables');
   const [status_text, set_status_text] = useState('Ready. Open a program to start debugging.');
+  const [gdb_output_lines, set_gdb_output_lines] = useState<string[]>([]);
 
   const api = window.gdbAPI;
 
@@ -46,13 +49,14 @@ function App(): React.ReactElement {
   }, [theme]);
 
   const toggle_theme = () => {
-    set_theme(prev => prev === 'dark' ? 'light' : 'dark');
+    set_theme(prev => prev === 'biogoo' ? 'dark' : 'biogoo');
   };
 
   // ---- Event listeners ----
   useEffect(() => {
     const unsub_output = api.on_output((data: string) => {
       console.log('[GDB]', data);
+      set_gdb_output_lines(prev => [...prev.slice(-200), data]);
     });
 
     const unsub_stopped = api.on_stopped(async (info: StoppedInfo) => {
@@ -296,7 +300,7 @@ function App(): React.ReactElement {
             current_line={current_line}
             breakpoint_lines={breakpoint_lines}
             on_toggle_breakpoint={handle_toggle_breakpoint}
-            editor_theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+            editor_theme={theme === 'dark' ? 'vs-dark' : 'biogoo'}
             on_toggle_theme={toggle_theme}
             on_evaluate_expression={(expr: string) => api.evaluate_expression(expr)}
           />
@@ -350,6 +354,11 @@ function App(): React.ReactElement {
           </div>
         </Panel>
       </PanelGroup>
+
+      <GDBShell
+        on_send_command={(cmd: string) => api.send_cli_command(cmd)}
+        gdb_output={gdb_output_lines}
+      />
 
       <div className="status-bar">
         <span className={'status-indicator ' + debug_state}></span>

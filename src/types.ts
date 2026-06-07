@@ -52,6 +52,7 @@ export interface GDBAPI {
   on_running: (callback: () => void) => () => void;
   on_exited: (callback: () => void) => () => void;
   open_file_dialog: () => Promise<string | null>;
+  send_cli_command: (command: string) => Promise<string>;
 }
 
 declare global {

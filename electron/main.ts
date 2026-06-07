@@ -153,6 +153,10 @@ ipcMain.handle('gdb:get_source_file_path', async () => {
   return gdbController?.get_source_file_path();
 });
 
+ipcMain.handle('gdb:send_cli_command', async (_event, command: string) => {
+  return gdbController?.send_cli_command(command) || 'GDB not running';
+});
+
 ipcMain.handle('gdb:get_breakpoint_locations', async () => {
   return gdbController?.breakpoint_locations;
 });
