@@ -12,6 +12,8 @@ export interface GDBAPI {
   set_breakpoint: (file: string, line: number, condition?: string) => Promise<{ id: string; file: string; line: number } | null>;
   remove_breakpoint: (bpId: string) => Promise<void>;
   list_breakpoints: () => Promise<Array<{ id: string; file: string; line: number; enabled: boolean; condition?: string }>>;
+  set_watchpoint: (expression: string) => Promise<{ id: string; expression: string } | null>;
+  list_watchpoints: () => Promise<Array<{ id: string; expression: string; type: string }>>;
   get_variables: () => Promise<Array<{ name: string; value: string; type: string }>>;
   evaluate_expression: (expression: string) => Promise<{ value: string; type: string } | null>;
   get_stack_frames: () => Promise<Array<{ level: number; func: string; file: string; line: number }>>;
@@ -41,6 +43,8 @@ const api: GDBAPI = {
   set_breakpoint: (file, line, condition) => ipcRenderer.invoke('gdb:set_breakpoint', file, line, condition),
   remove_breakpoint: (bpId) => ipcRenderer.invoke('gdb:remove_breakpoint', bpId),
   list_breakpoints: () => ipcRenderer.invoke('gdb:list_breakpoints'),
+  set_watchpoint: (expression) => ipcRenderer.invoke('gdb:set_watchpoint', expression),
+  list_watchpoints: () => ipcRenderer.invoke('gdb:list_watchpoints'),
   get_variables: () => ipcRenderer.invoke('gdb:get_variables'),
   evaluate_expression: (expression) => ipcRenderer.invoke('gdb:evaluate_expression', expression),
   get_stack_frames: () => ipcRenderer.invoke('gdb:get_stack_frames'),

@@ -38,6 +38,8 @@ export interface GDBAPI {
   set_breakpoint: (file: string, line: number, condition?: string) => Promise<{ id: string; file: string; line: number } | null>;
   remove_breakpoint: (bpId: string) => Promise<void>;
   list_breakpoints: () => Promise<Breakpoint[]>;
+  set_watchpoint: (expression: string) => Promise<{ id: string; expression: string } | null>;
+  list_watchpoints: () => Promise<{ id: string; expression: string; type: string }[]>;
   get_variables: () => Promise<Variable[]>;
   evaluate_expression: (expression: string) => Promise<{ value: string; type: string } | null>;
   get_stack_frames: () => Promise<StackFrame[]>;

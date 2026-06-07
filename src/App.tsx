@@ -5,6 +5,7 @@ import { SourceViewer } from './components/SourceViewer';
 import { BreakpointManager } from './components/BreakpointManager';
 import { VariableInspector } from './components/VariableInspector';
 import { MemoryViewer } from './components/MemoryViewer';
+import { WatchpointManager } from './components/WatchpointManager';
 import { GDBShell } from './components/GDBShell';
 import type { StoppedInfo, Breakpoint, Variable, StackFrame } from './types';
 
@@ -29,9 +30,10 @@ function App(): React.ReactElement {
   const [breakpoint_lines, set_breakpoint_lines] = useState<Set<number>>(new Set());
   const [variables, set_variables] = useState<Variable[]>([]);
   const [stack_frames, set_stack_frames] = useState<StackFrame[]>([]);
-  const [active_tab, set_active_tab] = useState<'variables' | 'breakpoints' | 'memory'>('variables');
+  const [active_tab, set_active_tab] = useState<'variables' | 'breakpoints' | 'memory' | 'watch'>('variables');
   const [status_text, set_status_text] = useState('Ready. Open a program to start debugging.');
   const [gdb_output_lines, set_gdb_output_lines] = useState<string[]>([]);
+  const [refresh_counter, set_refresh_counter] = useState(0);
 
   const api = window.gdbAPI;
 
@@ -98,6 +100,7 @@ function App(): React.ReactElement {
 
       set_debug_state('paused');
       set_status_text('Program stopped: ' + info.reason);
+      set_refresh_counter(c => c + 1);
 
       if (info.line && info.line > 0) {
         set_current_line(info.line);
@@ -327,6 +330,12 @@ function App(): React.ReactElement {
               >
                 Memory
               </button>
+              <button
+                className={'tab-btn' + (active_tab === 'watch' ? ' active' : '')}
+                onClick={() => set_active_tab('watch')}
+              >
+                Watch
+              </button>
             </div>
             <div className="tab-content">
               {active_tab === 'variables' && (
@@ -349,6 +358,9 @@ function App(): React.ReactElement {
               )}
               {active_tab === 'memory' && (
                 <MemoryViewer api={api} />
+              )}
+              {active_tab === 'watch' && (
+                <WatchpointManager api={api} refresh_signal={refresh_counter} />
               )}
             </div>
           </div>

@@ -509,6 +509,77 @@ body {
   color: var(--stop-color);
 }
 
+/* ---- Watchpoint Manager ---- */
+.watchpoint-manager {
+  padding: 4px 0;
+}
+
+.watchpoint-input-row {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+}
+
+.watchpoint-input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: 'Consolas', monospace;
+  font-size: var(--font-size-small);
+  border-radius: 3px;
+  outline: none;
+}
+
+.watchpoint-input:focus {
+  border-color: var(--accent);
+}
+
+.watchpoint-input::placeholder {
+  color: var(--text-muted);
+}
+
+.watchpoint-add-btn {
+  padding: 4px 12px;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.watchpoint-add-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.watchpoint-add-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.watchpoint-refresh-row {
+  padding: 4px 8px;
+}
+
+.watchpoint-refresh-btn {
+  width: 100%;
+  padding: 3px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.watchpoint-refresh-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 /* ---- Memory Viewer ---- */
 .memory-viewer {
   padding: 8px;

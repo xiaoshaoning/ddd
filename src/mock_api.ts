@@ -40,6 +40,9 @@ class MockGDBAPI implements GDBAPI {
   private listeners: Map<string, Listener[]> = new Map();
   private bp: Breakpoint[] = [...DEMO_BREAKPOINTS];
   private bp_lines = new Set(DEMO_BREAKPOINTS.map(b => b.line));
+  private watchpoints: { id: string; expression: string; type: string }[] = [
+    { id: 'wp_1', expression: 'x', type: 'hw watchpoint' },
+  ];
 
   async start(_program_path: string): Promise<boolean> {
     console.log('[Mock] GDB started');
@@ -116,10 +119,14 @@ class MockGDBAPI implements GDBAPI {
   }
 
   async remove_breakpoint(bp_id: string): Promise<void> {
-    const idx = this.bp.findIndex(b => b.id === bp_id);
-    if (idx >= 0) {
-      this.bp_lines.delete(this.bp[idx].line);
-      this.bp.splice(idx, 1);
+    const bp_idx = this.bp.findIndex(b => b.id === bp_id);
+    if (bp_idx >= 0) {
+      this.bp_lines.delete(this.bp[bp_idx].line);
+      this.bp.splice(bp_idx, 1);
+    }
+    const wp_idx = this.watchpoints.findIndex(w => w.id === bp_id);
+    if (wp_idx >= 0) {
+      this.watchpoints.splice(wp_idx, 1);
     }
   }
 
@@ -131,8 +138,15 @@ class MockGDBAPI implements GDBAPI {
     return [...DEMO_VARIABLES];
   }
 
-  async evaluate_expression(_expression: string): Promise<{ value: string; type: string } | null> {
-    return { value: '42', type: 'int' };
+  async evaluate_expression(expression: string): Promise<{ value: string; type: string } | null> {
+    const mock_values: Record<string, string> = {
+      'x': '5', 'y': '20', 'z': '45',
+      'a': '3', 'b': '4', 'c': '5',
+      'argc': '1', 'result': '120',
+      'counter': '2', 'global_counter': '2',
+      'sum': '15', 'm': '12', 's': '17',
+    };
+    return { value: mock_values[expression] || '42', type: 'int' };
   }
 
   async get_stack_frames(): Promise<StackFrame[]> {
@@ -187,6 +201,17 @@ class MockGDBAPI implements GDBAPI {
   async send_cli_command(command: string): Promise<string> {
     console.log('[Mock] CLI command:', command);
     return '(mock) ' + command + '\n= 42';
+  }
+
+  async set_watchpoint(expression: string): Promise<{ id: string; expression: string } | null> {
+    console.log('[Mock] Watch:', expression);
+    const id = 'wp_' + Date.now();
+    this.watchpoints.push({ id, expression, type: 'hw watchpoint' });
+    return { id, expression };
+  }
+
+  async list_watchpoints(): Promise<{ id: string; expression: string; type: string }[]> {
+    return [...this.watchpoints];
   }
 
   private add_listener(event: string, callback: Listener): () => void {

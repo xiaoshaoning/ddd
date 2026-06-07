@@ -510,6 +510,45 @@ export class GDBController extends EventEmitter {
     }
   }
 
+  async set_watchpoint(expression: string): Promise<{ id: string; expression: string } | null> {
+    try {
+      const result = await this.send_command('-break-watch', '"' + expression + '"') as Record<string, unknown> | null;
+      if (result && result.wpt) {
+        const wpt = result.wpt as Record<string, string>;
+        return { id: wpt.number, expression: expression };
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to set watchpoint:', err);
+      return null;
+    }
+  }
+
+  async list_watchpoints(): Promise<{ id: string; expression: string; type: string }[]> {
+    try {
+      const raw = await this.send_command_raw('-break-list');
+      const watchpoints: { id: string; expression: string; type: string }[] = [];
+      // Watchpoints have type="watchpoint" or "hw watchpoint" in bkpt blocks
+      const bkpt_regex = /bkpt=\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
+      let match: RegExpExecArray | null;
+      while ((match = bkpt_regex.exec(raw)) !== null) {
+        const block = match[1];
+        const bkpt_type = this.extract_field(block, 'type') || '';
+        if (bkpt_type.includes('watchpoint')) {
+          const number = this.extract_field(block, 'number');
+          const original_loc = this.extract_field(block, 'original-location') ||
+                               this.extract_field(block, 'what') || '';
+          if (number) {
+            watchpoints.push({ id: number, expression: original_loc, type: bkpt_type });
+          }
+        }
+      }
+      return watchpoints;
+    } catch {
+      return [];
+    }
+  }
+
   async get_variables(): Promise<Variable[]> {
     try {
       const raw = await this.send_command_raw('-stack-list-variables', '--simple-values');
