@@ -24,7 +24,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'DDD TypeScript - GDB Debugger',
+    title: 'ddd for Windows',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

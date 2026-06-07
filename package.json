@@ -1,8 +1,11 @@
 {
-  "name": "ddd-typescript",
-  "version": "0.1.0",
-  "description": "A graphical debugger frontend for GDB, built with Electron, React, TypeScript, and Monaco Editor",
+  "name": "ddd-for-windows",
+  "version": "1.0.0",
+  "description": "ddd for Windows - A graphical debugger frontend for GDB",
   "main": "dist-electron/main.js",
+  "repository": "https://github.com/xiaoshaoning/ddd",
+  "author": "Xiao, Shaoning",
+  "license": "GPL-3.0",
   "scripts": {
     "dev": "node scripts/dev.js",
     "dev:electron": "node scripts/dev-electron.js",
@@ -38,8 +41,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.ddd-typescript.app",
-    "productName": "DDD TypeScript",
+    "appId": "com.ddd-for-windows.app",
+    "productName": "ddd for Windows",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
@@ -48,13 +51,12 @@
       "output": "release"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": null
     },
-    "linux": {
-      "target": "AppImage"
-    },
-    "mac": {
-      "target": "dmg"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
