@@ -277,6 +277,28 @@ function App(): React.ReactElement {
     }
   };
 
+  // ---- Keyboard shortcuts ----
+  useEffect(() => {
+    const on_key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'F5') {
+        e.preventDefault();
+        if (debug_state === 'paused') handle_continue();
+        else if (program_loaded && debug_state !== 'running') handle_run();
+      } else if (e.key === 'F10' && debug_state === 'paused') {
+        e.preventDefault();
+        handle_step_over();
+      } else if (e.key === 'F11' && debug_state === 'paused') {
+        e.preventDefault();
+        if (e.shiftKey) handle_step_out();
+        else handle_step_into();
+      }
+    };
+    window.addEventListener('keydown', on_key);
+    return () => window.removeEventListener('keydown', on_key);
+  }, [debug_state, program_loaded]);
+
   const is_running = debug_state === 'running';
 
   return (
