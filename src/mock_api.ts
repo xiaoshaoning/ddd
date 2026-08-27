@@ -218,11 +218,46 @@ class MockGDBAPI implements GDBAPI {
     // Return a mock binary tree for demo
     return {
       nodes: [
-        { id: 'n0', label: '42', fields: [], address: '0x1000', type_name: 'Node' },
-        { id: 'n1', label: '15', fields: [], address: '0x1008', type_name: 'Node' },
-        { id: 'n2', label: '67', fields: [], address: '0x1010', type_name: 'Node' },
-        { id: 'n3', label: '3', fields: [], address: '0x1018', type_name: 'Node' },
-        { id: 'n4', label: '99', fields: [], address: '0x1020', type_name: 'Node' },
+        {
+          id: 'n0', label: '42', address: '0x1000', type_name: 'Node',
+          fields: [
+            { name: 'value', value: '42', type: 'int' },
+            { name: 'left', value: '0x1008', type: 'Node *' },
+            { name: 'right', value: '0x1010', type: 'Node *' },
+          ],
+        },
+        {
+          id: 'n1', label: '15', address: '0x1008', type_name: 'Node',
+          fields: [
+            { name: 'value', value: '15', type: 'int' },
+            { name: 'left', value: '0x1018', type: 'Node *' },
+            { name: 'right', value: '0x0', type: 'Node *' },
+          ],
+        },
+        {
+          id: 'n2', label: '67', address: '0x1010', type_name: 'Node',
+          fields: [
+            { name: 'value', value: '67', type: 'int' },
+            { name: 'left', value: '0x0', type: 'Node *' },
+            { name: 'right', value: '0x1020', type: 'Node *' },
+          ],
+        },
+        {
+          id: 'n3', label: '3', address: '0x1018', type_name: 'Node',
+          fields: [
+            { name: 'value', value: '3', type: 'int' },
+            { name: 'left', value: '0x0', type: 'Node *' },
+            { name: 'right', value: '0x0', type: 'Node *' },
+          ],
+        },
+        {
+          id: 'n4', label: '99', address: '0x1020', type_name: 'Node',
+          fields: [
+            { name: 'value', value: '99', type: 'int' },
+            { name: 'left', value: '0x0', type: 'Node *' },
+            { name: 'right', value: '0x0', type: 'Node *' },
+          ],
+        },
       ],
       edges: [
         { source: 'n0', target: 'n1', label: 'left' },

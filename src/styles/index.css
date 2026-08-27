@@ -852,6 +852,63 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  position: relative;
+}
+
+.graph-tooltip {
+  position: absolute;
+  z-index: 10;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 6px 8px;
+  font-family: 'Consolas', monospace;
+  font-size: 11px;
+  max-width: 240px;
+  pointer-events: none;
+}
+
+.graph-tooltip-value {
+  font-weight: bold;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.graph-tooltip-type {
+  color: var(--text-muted);
+  margin: 2px 0 4px;
+  word-break: break-all;
+}
+
+.graph-tooltip-fields {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.graph-tooltip-fields td {
+  padding: 1px 4px;
+  border-top: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.graph-tooltip-fields td:first-child {
+  padding-left: 0;
+}
+
+.graph-tooltip-field-name {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.graph-tooltip-field-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.graph-tooltip-field-type {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .graph-viewer svg {

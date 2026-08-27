@@ -1,18 +1,41 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import type { DataGraph, GraphNode, GraphEdge } from '../types';
+import type { DataGraph, GraphNode, FieldInfo } from '../types';
 
 interface GraphViewerProps {
   graph: DataGraph | null;
   loading: boolean;
 }
 
+interface TooltipState {
+  node: GraphNode;
+  x: number;
+  y: number;
+}
+
 const NODE_W = 80;
-const NODE_H = 36;
+const NODE_H = 40;
+const TOOLTIP_W = 240;
+const TOOLTIP_H = 150;
+const MAX_LABEL_LEN = 14;
+
+/** Truncate long labels (e.g. pointer addresses) with an ellipsis. */
+function short_label(label: string): string {
+  if (label.length <= MAX_LABEL_LEN) return label;
+  return label.slice(0, MAX_LABEL_LEN - 1) + '…';
+}
+
+/** A pointer field whose value is NULL (or unknown) — drawn as a ground symbol. */
+function is_null_pointer(field: FieldInfo): boolean {
+  if (!field.type.includes('*')) return false;
+  return field.value === '' || field.value === '0x0' || field.value === '0';
+}
 
 export function GraphViewer(props: GraphViewerProps): React.ReactElement {
   const { graph, loading } = props;
   const svg_ref = useRef<SVGSVGElement>(null);
+  const container_ref = useRef<HTMLDivElement>(null);
+  const [tooltip, set_tooltip] = useState<TooltipState | null>(null);
 
   useEffect(() => {
     if (!graph || !svg_ref.current) return;
@@ -33,15 +56,28 @@ export function GraphViewer(props: GraphViewerProps): React.ReactElement {
       });
     svg.call(zoom);
 
+    // Tooltip follows the cursor, clamped inside the viewer
+    const handle_hover = (node: GraphNode, event: MouseEvent) => {
+      const container = container_ref.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      let x = event.clientX - rect.left + 14;
+      let y = event.clientY - rect.top + 14;
+      x = Math.min(Math.max(x, 4), Math.max(rect.width - TOOLTIP_W - 4, 4));
+      y = Math.min(Math.max(y, 4), Math.max(rect.height - TOOLTIP_H - 4, 4));
+      set_tooltip({ node, x, y });
+    };
+    const handle_leave = () => set_tooltip(null);
+
     // Build hierarchy for tree layout if it's a tree, else use force
     const is_tree = graph.edges.every(e =>
       graph.edges.filter(o => o.target === e.target).length <= 1
     ) && graph.nodes.length > 0;
 
     if (is_tree && graph.nodes.length > 0) {
-      render_tree(graph, g, width, height);
+      render_tree(graph, g, width, height, handle_hover, handle_leave);
     } else {
-      render_force(graph, g, width, height);
+      render_force(graph, g, width, height, handle_hover, handle_leave);
     }
   }, [graph]);
 
@@ -61,17 +97,46 @@ export function GraphViewer(props: GraphViewerProps): React.ReactElement {
   }
 
   return (
-    <div className="graph-viewer">
+    <div className="graph-viewer" ref={container_ref}>
       <svg ref={svg_ref} width="100%" height="100%" />
+      {tooltip && (
+        <div className="graph-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
+          <div className="graph-tooltip-value">{tooltip.node.label}</div>
+          <div className="graph-tooltip-type">
+            {tooltip.node.type_name}
+            {tooltip.node.address && tooltip.node.address !== '?' && ' @ ' + tooltip.node.address}
+          </div>
+          {tooltip.node.fields.length > 0 && (
+            <table className="graph-tooltip-fields">
+              <tbody>
+                {tooltip.node.fields.map((field, i) => (
+                  <tr key={i}>
+                    <td className="graph-tooltip-field-name">{field.name}</td>
+                    <td className="graph-tooltip-field-value">
+                      {is_null_pointer(field) ? '⏚ NULL' : field.value || '—'}
+                    </td>
+                    <td className="graph-tooltip-field-type">{field.type}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+type HoverHandler = (node: GraphNode, event: MouseEvent) => void;
+type LeaveHandler = () => void;
 
 function render_tree(
   graph: DataGraph,
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   width: number,
-  height: number
+  height: number,
+  on_hover: HoverHandler,
+  on_leave: LeaveHandler
 ): void {
   const has_incoming = new Set(graph.edges.map(e => e.target));
   const root_id = graph.nodes.find(n => !has_incoming.has(n.id))?.id || graph.nodes[0].id;
@@ -116,7 +181,10 @@ function render_tree(
     .data(root.descendants())
     .join('g')
     .attr('transform', (d: any) =>
-      `translate(${(d.x || 0) + offset_x - NODE_W / 2},${(d.y || 0) + offset_y - NODE_H / 2})`);
+      `translate(${(d.x || 0) + offset_x - NODE_W / 2},${(d.y || 0) + offset_y - NODE_H / 2})`)
+    .attr('cursor', 'pointer')
+    .on('mousemove', (event: MouseEvent, d: any) => on_hover(d.data, event))
+    .on('mouseleave', on_leave);
 
   node_g.append('rect')
     .attr('width', NODE_W).attr('height', NODE_H).attr('rx', 6)
@@ -125,14 +193,16 @@ function render_tree(
   node_g.append('text')
     .attr('x', NODE_W / 2).attr('y', NODE_H / 2 + 5)
     .attr('text-anchor', 'middle').attr('fill', '#000')
-    .attr('font-size', '13px').attr('font-family', 'Consolas, monospace')
-    .text((d: any) => d.data.label);
+    .attr('font-size', '12px').attr('font-family', 'Consolas, monospace')
+    .attr('pointer-events', 'none')
+    .text((d: any) => short_label(d.data.label));
 
   g.append('g').selectAll('text').data(root.links()).join('text')
     .attr('x', (d: any) => ((d.source.x || 0) + (d.target.x || 0)) / 2 + offset_x)
     .attr('y', (d: any) => ((d.source.y || 0) + (d.target.y || 0)) / 2 + offset_y - 8)
     .attr('text-anchor', 'middle').attr('fill', '#666')
     .attr('font-size', '11px').attr('font-family', 'Consolas, monospace')
+    .attr('pointer-events', 'none')
     .text(d => graph.edges.find(e => e.source === d.source.data.id && e.target === d.target.data.id)?.label || '');
 }
 
@@ -140,7 +210,9 @@ function render_force(
   graph: DataGraph,
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   width: number,
-  height: number
+  height: number,
+  on_hover: HoverHandler,
+  on_leave: LeaveHandler
 ): void {
   const nodes: any[] = graph.nodes.map(n => ({ ...n }));
   const links: any[] = graph.edges.map(e => ({ ...e }));
@@ -154,6 +226,9 @@ function render_force(
     .selectAll('line').data(links).join('line');
 
   const node_g = g.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor', 'pointer')
+    .on('mousemove', (event: MouseEvent, d: any) => on_hover(d, event))
+    .on('mouseleave', on_leave)
     .call(d3.drag<any, any>()
       .on('start', (event: any, d: any) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -173,8 +248,9 @@ function render_force(
   node_g.append('text')
     .attr('x', NODE_W / 2).attr('y', NODE_H / 2 + 5)
     .attr('text-anchor', 'middle').attr('fill', '#000')
-    .attr('font-size', '13px').attr('font-family', 'Consolas, monospace')
-    .text((d: any) => d.label);
+    .attr('font-size', '12px').attr('font-family', 'Consolas, monospace')
+    .attr('pointer-events', 'none')
+    .text((d: any) => short_label(d.label));
 
   simulation.on('tick', () => {
     link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
