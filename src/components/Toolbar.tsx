@@ -29,9 +29,7 @@ export function Toolbar(props: ToolbarProps): React.ReactElement {
     on_stop,
   } = props;
 
-  const is_idle = debug_state === 'idle';
   const is_paused = debug_state === 'paused';
-  const is_exited = debug_state === 'exited';
 
   // Combined Run/Continue: Run at idle, Continue when paused
   const run_continue_label = is_paused ? '⏭ Continue' : '▶ Run';
