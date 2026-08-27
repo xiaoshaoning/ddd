@@ -40,7 +40,12 @@ export function GDBShell(props: GDBShellProps): React.ReactElement {
 
     try {
       const result = await on_send_command(cmd);
-      set_history(prev => [...prev, result]);
+      // Normal command output arrives through the gdb_output stream and is
+      // rendered below, so only surface explicit errors here (avoids showing
+      // every command's output twice).
+      if (result.startsWith('Error:')) {
+        set_history(prev => [...prev, result]);
+      }
     } catch (err: unknown) {
       set_history(prev => [...prev, 'Error: ' + (err as Error).message]);
     }
@@ -101,9 +106,12 @@ export function GDBShell(props: GDBShellProps): React.ReactElement {
           </div>
         )}
         {history.map((line, i) => (
-          <div key={i} className={line.startsWith('(gdb)') ? 'gdb-shell-input-line' : 'gdb-shell-output-line'}>
+          <div key={'h' + i} className={line.startsWith('(gdb)') ? 'gdb-shell-input-line' : 'gdb-shell-output-line'}>
             {line}
           </div>
+        ))}
+        {gdb_output.map((line, i) => (
+          <div key={'o' + i} className="gdb-shell-output-line">{line}</div>
         ))}
       </div>
       <div className="gdb-shell-input-row">
