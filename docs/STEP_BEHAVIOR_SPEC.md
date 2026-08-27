@@ -93,12 +93,18 @@ After stepping out:
 When any step action lands on a line that is only `}` (after trimming whitespace), the debugger automatically sends Continue. This prevents pausing on function epilogues.
 
 ### System File Detection
-A file is considered a "system file" if its path contains any of:
-- `msys64`
-- `mingw`
-- `/crt/`
-- `/build/`
-- `/usr/`
+A file is considered a "system file" (library/CRT/OS code) if its normalized path
+(lowercase, forward slashes) contains any of:
+- `/usr/` — POSIX system directories
+- `/build/` — GCC build directories
+- `/crt/` — C runtime sources
+- `/windows/system32/` or `/windows/syswow64/` — Windows system DLLs
+- `mingw` or `msys` — MinGW/MSYS runtime
+- `dllcrt` — MinGW CRT stubs
+- the path ends with `.dll` — Windows system libraries
+
+The same rule is shared by the renderer (`src/App.tsx`) and the GDB controller
+(`electron/gdb/gdb-controller.ts`); keep both copies in sync.
 
 When landing in a system file:
 - After Step Into: auto Step Out (library function, no source to show)

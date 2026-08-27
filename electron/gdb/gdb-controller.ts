@@ -105,14 +105,10 @@ export class GDBController extends EventEmitter {
       }
 
       // Pick the user's source file (not from system directories)
-      const system_dirs = ['/usr/', '/build/', 'msys64', 'mingw', '/crt/', 'dllcrt'];
       for (const name of fullnames) {
         // Unescape MI C-string first to get the real path
         const unescaped = this.parse_string('"' + name + '"');
-        // Normalize to forward slashes for system-dir check
-        const normalized = unescaped.replace(/\\/g, '/');
-        const is_system = system_dirs.some(d => normalized.includes(d));
-        if (!is_system) {
+        if (!this.is_system_path(unescaped)) {
           this.source_file_path = unescaped;
           this.emit('output', 'Detected source file: ' + unescaped);
           return;
@@ -126,6 +122,21 @@ export class GDBController extends EventEmitter {
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * Whether a file path belongs to system code (library/CRT/OS) rather
+   * than the user's program. Keep in sync with is_system_path in
+   * src/App.tsx.
+   */
+  private is_system_path(file_path: string): boolean {
+    const normalized = file_path.replace(/\\/g, '/').toLowerCase();
+    const markers = [
+      '/usr/', '/build/', '/crt/',
+      '/windows/system32/', '/windows/syswow64/',
+      'mingw', 'msys', 'dllcrt',
+    ];
+    return markers.some(m => normalized.includes(m)) || normalized.endsWith('.dll');
   }
 
   stop(): void {
@@ -333,59 +344,157 @@ export class GDBController extends EventEmitter {
     return info;
   }
 
+  /**
+   * Parse a GDB/MI result record (the text after ^done / ^error) into a
+   * nested structure of objects, arrays, strings and bare scalars.
+   *
+   * Handles all three MI value forms plus the `name={...}` list items GDB
+   * emits (e.g. -var-list-children):
+   *   - flat pairs:   name="value"  or  name=123
+   *   - tuples:       name={...}
+   *   - lists:        name=[...]  (elements: tuples, strings, or name=value)
+   */
   private parse_result(result: string): unknown {
-    if (!result || result.trim() === '') return null;
+    const trimmed = result.trim();
+    if (!trimmed) return null;
 
-    const parsed: Record<string, unknown> = {};
-
-    const bkpt_match = result.match(/bkpt=\\\{([^}]*(?:\\{[^}]*\\}[^}]*)*)\\\}/);
-    if (bkpt_match) {
-      parsed.bkpt = this.parse_tuple(bkpt_match[1]);
+    // Bare tuple/list at the top level
+    if (trimmed.startsWith('[')) {
+      const value = this.parse_mi_value(trimmed, 0);
+      return value ? value.value : [];
+    }
+    if (trimmed.startsWith('{')) {
+      const value = this.parse_mi_value(trimmed, 0);
+      return value ? value.value : {};
     }
 
-    const pair_regex = /(\w+)="([^"]*)"/g;
-    let match: RegExpExecArray | null;
-    while ((match = pair_regex.exec(result)) !== null) {
-      parsed[match[1]] = match[2];
-    }
-
-    const simple_regex = /(\w+)=([^,\s}]+)/g;
-    while ((match = simple_regex.exec(result)) !== null) {
-      if (!(match[1] in parsed)) {
-        parsed[match[1]] = match[2];
-      }
-    }
-
-    if (result.startsWith('[')) {
-      return this.parse_list(result);
-    }
-
-    return Object.keys(parsed).length > 0 ? parsed : result;
+    // Skip the status word (e.g. "done" in "done,bkpt={...}") up to the
+    // first '=', then parse the remaining name=value assignments. The
+    // status word may already be gone, leaving a leading comma.
+    const first_eq = trimmed.indexOf('=');
+    if (first_eq === -1) return trimmed;
+    const status_end = trimmed.lastIndexOf(',', first_eq);
+    return this.parse_mi_assignments(trimmed.substring(status_end + 1));
   }
 
-  private parse_tuple(str: string): Record<string, string> {
-    const result: Record<string, string> = {};
-    const pair_regex = /(\w+)="([^"]*)"/g;
-    let match: RegExpExecArray | null;
-    while ((match = pair_regex.exec(str)) !== null) {
-      result[match[1]] = match[2];
-    }
-    return result;
-  }
+  /** Parse a sequence of `name=value,name=value,...` assignments. */
+  private parse_mi_assignments(str: string): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    let i = 0;
+    while (i < str.length) {
+      if (str[i] === ',') { i++; continue; }
+      while (i < str.length && /\s/.test(str[i])) i++;
+      if (i >= str.length) break;
 
-  private parse_list(str: string): unknown[] {
-    const results: unknown[] = [];
-    const inner = str.substring(1, str.length - 1);
-    const items = inner.split(/,(?![^{]*\})/);
-    for (const item of items) {
-      const trimmed = item.trim();
-      if (trimmed.startsWith('{')) {
-        results.push(this.parse_tuple(trimmed.substring(1, trimmed.length - 1)));
-      } else if (trimmed.startsWith('"')) {
-        results.push(this.parse_string(trimmed));
+      const name_start = i;
+      while (i < str.length && /[\w.-]/.test(str[i])) i++;
+      const name = str.substring(name_start, i);
+      if (!name) { i++; continue; } // malformed input — skip
+      while (i < str.length && /\s/.test(str[i])) i++;
+      if (str[i] !== '=') { i++; continue; } // skip malformed input
+      i++;
+
+      const value = this.parse_mi_value(str, i);
+      if (value) {
+        out[name] = value.value;
+        i = value.next;
+      } else {
+        i++;
       }
     }
-    return results;
+    return out;
+  }
+
+  /** Parse a single MI value starting at `start`; returns it and the cursor. */
+  private parse_mi_value(
+    str: string,
+    start: number
+  ): { value: unknown; next: number } | undefined {
+    let i = start;
+    while (i < str.length && /\s/.test(str[i])) i++;
+    if (i >= str.length) return undefined;
+    const c = str[i];
+
+    if (c === '"') {
+      const end = this.find_string_end(str, i);
+      return { value: this.parse_string(str.substring(i, end + 1)), next: end + 1 };
+    }
+
+    if (c === '{') {
+      const end = this.find_balanced(str, i, '{', '}');
+      const value = this.parse_mi_assignments(str.substring(i + 1, end));
+      return { value, next: end + 1 };
+    }
+
+    if (c === '[') {
+      const end = this.find_balanced(str, i, '[', ']');
+      const value = this.parse_mi_list(str.substring(i + 1, end));
+      return { value, next: end + 1 };
+    }
+
+    // Bare scalar (number, keyword, ...)
+    const val_start = i;
+    while (i < str.length && str[i] !== ',' && str[i] !== '}' && str[i] !== ']') i++;
+    return { value: str.substring(val_start, i).trim(), next: i };
+  }
+
+  /** Parse the comma-separated elements of a [...] list. */
+  private parse_mi_list(inner: string): unknown[] {
+    const items: unknown[] = [];
+    let i = 0;
+    while (i < inner.length) {
+      if (inner[i] === ',') { i++; continue; }
+      while (i < inner.length && /\s/.test(inner[i])) i++;
+      if (i >= inner.length) break;
+
+      const c = inner[i];
+      if (c === '{' || c === '"' || c === '[') {
+        const value = this.parse_mi_value(inner, i);
+        if (value) { items.push(value.value); i = value.next; }
+        else i++;
+      } else {
+        // name=value item (e.g. child={...}) or a bare scalar
+        const name_start = i;
+        while (i < inner.length && /[\w.-]/.test(inner[i])) i++;
+        while (i < inner.length && /\s/.test(inner[i])) i++;
+        if (inner[i] === '=') {
+          i++;
+          const value = this.parse_mi_value(inner, i);
+          if (value) { items.push(value.value); i = value.next; }
+        } else {
+          const val_start = name_start;
+          while (i < inner.length && inner[i] !== ',') i++;
+          items.push(inner.substring(val_start, i).trim());
+        }
+      }
+    }
+    return items;
+  }
+
+  /** Find the closing quote of a C string, honoring backslash escapes. */
+  private find_string_end(str: string, open: number): number {
+    for (let i = open + 1; i < str.length; i++) {
+      if (str[i] === '\\') { i++; continue; }
+      if (str[i] === '"') return i;
+    }
+    return str.length - 1;
+  }
+
+  /** Find the matching close bracket, skipping over quoted strings. */
+  private find_balanced(str: string, open: number, open_ch: string, close_ch: string): number {
+    let depth = 0;
+    for (let i = open; i < str.length; i++) {
+      if (str[i] === '"') {
+        i = this.find_string_end(str, i);
+        continue;
+      }
+      if (str[i] === open_ch) depth++;
+      else if (str[i] === close_ch) {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return str.length - 1;
   }
 
   private parse_error(error_str: string): string {
@@ -672,17 +781,24 @@ export class GDBController extends EventEmitter {
   async read_memory(address: string, length: number): Promise<string> {
     try {
       const result = await this.send_command(
-        '-data-read-memory', address, 'x', '1', '1', length.toString()
+        '-data-read-memory-bytes', address, length.toString()
       ) as Record<string, unknown> | null;
       if (result && result.memory) {
         let output = '';
         const memories = Array.isArray(result.memory) ? result.memory : [result.memory];
         for (const mem of memories as Record<string, unknown>[]) {
-          const addr = mem.addr || '???';
-          const data = mem.data as string[] | undefined;
-          output += addr + ': ' + (data ? data.join(' ') : '') + '\n';
+          const begin = (mem.begin as string) || '???';
+          const contents = (mem.contents as string) || '';
+          // Format as 16-byte rows: 0x...: 0xf6 0x7f 0x00 ...
+          const bytes = contents.match(/.{2}/g) || [];
+          const base = parseInt(begin, 16) || 0;
+          for (let i = 0; i < bytes.length; i += 16) {
+            const row = bytes.slice(i, i + 16);
+            const addr = (base + i).toString(16).padStart(16, '0');
+            output += '0x' + addr + ': ' + row.map(b => '0x' + b).join(' ') + '\n';
+          }
         }
-        return output;
+        return output.trimEnd();
       }
       return '';
     } catch (err: unknown) {
