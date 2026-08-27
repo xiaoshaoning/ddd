@@ -120,9 +120,14 @@ Pre-compiled test programs in `tests/`:
 ## Running Tests
 
 ```bash
-npm test                # 42 headless browser tests
-npx playwright test --ui  # Interactive test runner
+npm run build            # required first — the Electron smoke test loads dist/
+npm test                 # 43 tests: headless browser + Electron/GDB smoke
+npx playwright test --ui # Interactive test runner
 ```
+
+The suite includes an end-to-end smoke test (`tests/electron-smoke.spec.ts`)
+that launches the real Electron app against **real GDB** — it skips itself
+with a hint if the production build is missing, and requires GDB on `PATH`.
 
 On a fresh machine, install the Playwright browsers first (the CDN can be slow,
 so be patient):
