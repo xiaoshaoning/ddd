@@ -6,8 +6,9 @@ import { BreakpointManager } from './components/BreakpointManager';
 import { VariableInspector } from './components/VariableInspector';
 import { MemoryViewer } from './components/MemoryViewer';
 import { WatchpointManager } from './components/WatchpointManager';
+import { GraphViewer } from './components/GraphViewer';
 import { GDBShell } from './components/GDBShell';
-import type { StoppedInfo, Breakpoint, Variable, StackFrame } from './types';
+import type { StoppedInfo, Breakpoint, Variable, StackFrame, DataGraph } from './types';
 
 type DebugState = 'idle' | 'running' | 'paused' | 'exited';
 
@@ -30,7 +31,11 @@ function App(): React.ReactElement {
   const [breakpoint_lines, set_breakpoint_lines] = useState<Set<number>>(new Set());
   const [variables, set_variables] = useState<Variable[]>([]);
   const [stack_frames, set_stack_frames] = useState<StackFrame[]>([]);
-  const [active_tab, set_active_tab] = useState<'variables' | 'breakpoints' | 'memory' | 'watch'>('variables');
+  const [active_tab, set_active_tab] = useState<'variables' | 'breakpoints' | 'memory' | 'watch' | 'viz'>('variables');
+  const [graph_data, set_graph_data] = useState<DataGraph | null>(null);
+  const [graph_loading, set_graph_loading] = useState(false);
+  const [graph_expr, set_graph_expr] = useState('');
+  const [graph_error, set_graph_error] = useState('');
   const [status_text, set_status_text] = useState('Ready. Open a program to start debugging.');
   const [gdb_output_lines, set_gdb_output_lines] = useState<string[]>([]);
   const [refresh_counter, set_refresh_counter] = useState(0);
@@ -53,6 +58,21 @@ function App(): React.ReactElement {
   const toggle_theme = () => {
     set_theme(prev => prev === 'biogoo' ? 'dark' : 'biogoo');
   };
+
+  const refresh_debug_info = useCallback(async () => {
+    try {
+      const [vars, frames, bps] = await Promise.all([
+        api.get_variables(),
+        api.get_stack_frames(),
+        api.list_breakpoints(),
+      ]);
+      set_variables(vars);
+      set_stack_frames(frames);
+      set_breakpoints(bps);
+      const bp_set = new Set(bps.map(b => b.line));
+      set_breakpoint_lines(bp_set);
+    } catch { /* ignore */ }
+  }, [api]);
 
   // ---- Event listeners ----
   useEffect(() => {
@@ -162,22 +182,7 @@ function App(): React.ReactElement {
       unsub_running();
       unsub_exited();
     };
-  }, [source_file]);
-
-  const refresh_debug_info = useCallback(async () => {
-    try {
-      const [vars, frames, bps] = await Promise.all([
-        api.get_variables(),
-        api.get_stack_frames(),
-        api.list_breakpoints(),
-      ]);
-      set_variables(vars);
-      set_stack_frames(frames);
-      set_breakpoints(bps);
-      const bp_set = new Set(bps.map(b => b.line));
-      set_breakpoint_lines(bp_set);
-    } catch { /* ignore */ }
-  }, [api]);
+  }, [source_file, refresh_debug_info, api]);
 
   // ---- Actions ----
   const handle_open_program = async () => {
@@ -250,6 +255,9 @@ function App(): React.ReactElement {
     set_breakpoint_lines(new Set());
     set_variables([]);
     set_stack_frames([]);
+    set_graph_data(null);
+    set_graph_expr('');
+    set_graph_error('');
     set_status_text('Debug session ended.');
   };
 
@@ -275,6 +283,24 @@ function App(): React.ReactElement {
         set_breakpoints(prev => [...prev, { id: bp.id, file: bp.file, line: bp.line, enabled: true }]);
       }
     }
+  };
+
+  const extract_graph_data = async () => {
+    const expr = graph_expr.trim();
+    if (!expr) return;
+    set_graph_loading(true);
+    set_graph_error('');
+    try {
+      const data = await api.extract_graph(expr, 10);
+      set_graph_data(data);
+      if (!data || data.nodes.length === 0) {
+        set_graph_error('No structure found for: ' + expr);
+      }
+    } catch {
+      set_graph_error('Failed to extract graph');
+      set_graph_data(null);
+    }
+    set_graph_loading(false);
   };
 
   // ---- Keyboard shortcuts ----
@@ -358,6 +384,12 @@ function App(): React.ReactElement {
               >
                 Watch
               </button>
+              <button
+                className={'tab-btn' + (active_tab === 'viz' ? ' active' : '')}
+                onClick={() => set_active_tab('viz')}
+              >
+                Viz
+              </button>
             </div>
             <div className="tab-content">
               {active_tab === 'variables' && (
@@ -383,6 +415,32 @@ function App(): React.ReactElement {
               )}
               {active_tab === 'watch' && (
                 <WatchpointManager api={api} refresh_signal={refresh_counter} />
+              )}
+              {active_tab === 'viz' && (
+                <div className="graph-viewer">
+                  <div className="graph-controls">
+                    <input
+                      type="text"
+                      className="graph-expr-input"
+                      value={graph_expr}
+                      onChange={(e) => set_graph_expr(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && extract_graph_data()}
+                      placeholder="Expression, e.g. root, head, tree"
+                      spellCheck={false}
+                    />
+                    <button
+                      className="graph-viz-btn"
+                      onClick={extract_graph_data}
+                      disabled={graph_loading || !graph_expr.trim()}
+                    >
+                      {graph_loading ? '...' : 'Visualize'}
+                    </button>
+                  </div>
+                  {graph_error && (
+                    <div className="graph-empty"><p>{graph_error}</p></div>
+                  )}
+                  <GraphViewer graph={graph_data} loading={graph_loading} />
+                </div>
               )}
             </div>
           </div>

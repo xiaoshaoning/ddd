@@ -58,7 +58,7 @@ export class GDBController extends EventEmitter {
     try {
       this.process = spawn('gdb', ['-q', '--interpreter=mi', resolved_path], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,
+        shell: false,
       });
 
       this.process.stdout?.on('data', (data: Buffer) => {
@@ -105,7 +105,7 @@ export class GDBController extends EventEmitter {
       }
 
       // Pick the user's source file (not from system directories)
-      const system_dirs = ['/usr/', '/build/', 'msys64', 'mingw', 'crt', 'dllcrt'];
+      const system_dirs = ['/usr/', '/build/', 'msys64', 'mingw', '/crt/', 'dllcrt'];
       for (const name of fullnames) {
         // Unescape MI C-string first to get the real path
         const unescaped = this.parse_string('"' + name + '"');
@@ -690,14 +690,36 @@ export class GDBController extends EventEmitter {
     }
   }
 
-  async disassemble(address: string, length: number): Promise<string> {
+  /**
+   * Run a CLI command through -interpreter-exec console and collect the
+   * console output. The text of a console command arrives as separate
+   * ~"..." (and &"...") records, never embedded in the ^done response,
+   * so we capture it by listening to 'output' events while the command
+   * is in flight.
+   */
+  private async send_console_capture(command: string): Promise<string> {
+    const output_parts: string[] = [];
+    const on_output = (data: string) => {
+      output_parts.push(data);
+    };
+    this.on('output', on_output);
     try {
       await this.send_command(
-        '-interpreter-exec',
-        'console',
-        '"disassemble ' + address + ',+' + length + '"'
+        '-interpreter-exec', 'console',
+        '"' + command.replace(/"/g, '\\"') + '"'
       );
-      return '';
+    } finally {
+      this.off('output', on_output);
+    }
+    return output_parts.join('');
+  }
+
+  async disassemble(address: string, length: number): Promise<string> {
+    try {
+      const result = await this.send_console_capture(
+        'disassemble ' + address + ',+' + length
+      );
+      return result || '(no output)';
     } catch (err: unknown) {
       return 'Error: ' + (err as Error).message;
     }
@@ -705,29 +727,162 @@ export class GDBController extends EventEmitter {
 
   async send_cli_command(command: string): Promise<string> {
     try {
-      // Collect console output that arrives between the command and its response.
-      // -interpreter-exec console sends ~"..." records as separate async lines,
-      // not embedded in the ^done response.
-      const output_parts: string[] = [];
-      const orig_emit = this.emit.bind(this);
-      const on_output = (data: string) => {
-        output_parts.push(data);
-      };
-      // Listen for output events during the command
-      this.on('output', on_output);
-
-      try {
-        await this.send_command(
-          '-interpreter-exec', 'console',
-          '"' + command.replace(/"/g, '\\"') + '"'
-        );
-      } finally {
-        this.off('output', on_output);
-      }
-
-      return output_parts.join('') || '(no output)';
+      const result = await this.send_console_capture(command);
+      return result || '(no output)';
     } catch (err: unknown) {
       return 'Error: ' + (err as Error).message;
+    }
+  }
+
+  // ---- Data Structure Graph Extraction ----
+
+  async extract_graph(
+    expression: string,
+    max_depth: number = 10,
+    max_nodes: number = 200
+  ): Promise<{ nodes: { id: string; label: string; fields: { name: string; value: string; type: string }[]; address: string; type_name: string }[]; edges: { source: string; target: string; label: string }[] }> {
+    const nodes: Map<string, { id: string; label: string; fields: { name: string; value: string; type: string }[]; address: string; type_name: string }> = new Map();
+    const edges: { source: string; target: string; label: string }[] = [];
+    const visited = new Set<string>();
+
+    const walk = async (
+      var_name: string,
+      c_expr: string,
+      info: { value: string; type: string; numchild: number },
+      depth: number
+    ): Promise<string | null> => {
+      if (depth > max_depth || nodes.size >= max_nodes) return null;
+      if (visited.has(var_name)) return null;
+      visited.add(var_name);
+
+      const is_ptr = info.type.includes('*');
+
+      // Node identity: the address of the data this node represents.
+      // For pointers that is the pointed-to address (the value itself);
+      // for everything else we ask GDB for &(c_expr).
+      let address = '';
+      if (is_ptr) {
+        const hex = info.value.match(/0x[0-9a-fA-F]+/);
+        address = hex ? hex[0] : '';
+      } else {
+        address = await this.get_address_of(c_expr);
+      }
+      if (!address) address = '?';
+      const node_key = address !== '?' ? address.toLowerCase() : 'var:' + var_name;
+
+      // Same address reached twice (shared struct / cycle) is the same node
+      const existing = nodes.get(node_key);
+      if (existing) return node_key;
+
+      const node_id = 'n' + nodes.size;
+      const fields: { name: string; value: string; type: string }[] = [];
+      const pending_children: { var_name: string; c_expr: string; info: { value: string; type: string; numchild: number }; label: string }[] = [];
+
+      if (info.numchild > 0) {
+        try {
+          const raw = await this.send_command_raw(
+            '-var-list-children', '--simple-values', var_name
+          );
+          for (const block of this.parse_child_blocks(raw)) {
+            const child_var = this.extract_field(block, 'name');
+            const child_exp = this.extract_field(block, 'exp');
+            const child_value = this.extract_field(block, 'value');
+            const child_type = this.extract_field(block, 'type');
+            const child_numchild = parseInt(this.extract_field(block, 'numchild') || '0');
+            if (!child_var) continue;
+
+            fields.push({ name: child_exp || child_var, value: child_value, type: child_type });
+
+            // Follow non-NULL pointer fields as edges to other nodes
+            const child_ptr = child_value.match(/0x[0-9a-fA-F]+/);
+            if (child_type.includes('*') && child_exp && child_ptr && child_ptr[0] !== '0x0') {
+              // Build the C expression for this child (used to read addresses
+              // of non-pointer descendants): (*(parent)).field for pointer
+              // parents, (parent).field otherwise.
+              const parent_expr = is_ptr ? '(*(' + c_expr + '))' : '(' + c_expr + ')';
+              pending_children.push({
+                var_name: child_var,
+                c_expr: parent_expr + '.' + child_exp,
+                info: { value: child_value, type: child_type, numchild: child_numchild },
+                label: child_exp,
+              });
+            }
+          }
+        } catch {
+          // Skip fields that can't be read
+        }
+      }
+
+      nodes.set(node_key, {
+        id: node_id,
+        label: info.value,
+        fields,
+        address,
+        type_name: info.type,
+      });
+
+      for (const child of pending_children) {
+        const target_key = await walk(child.var_name, child.c_expr, child.info, depth + 1);
+        if (target_key) {
+          const target = nodes.get(target_key);
+          if (target) edges.push({ source: node_id, target: target.id, label: child.label });
+        }
+      }
+
+      return node_key;
+    };
+
+    let root_result: Record<string, string> | null = null;
+    try {
+      root_result = await this.send_command(
+        '-var-create', '-', '*', '"' + expression.replace(/"/g, '\\"') + '"'
+      ) as Record<string, string> | null;
+
+      if (!root_result || !root_result.name) {
+        return { nodes: [], edges: [] };
+      }
+
+      await walk(root_result.name, expression, {
+        value: root_result.value || '?',
+        type: root_result.type || 'unknown',
+        numchild: parseInt(root_result.numchild || '0'),
+      }, 0);
+    } catch {
+      // Expression not readable in the current frame
+    } finally {
+      if (root_result && root_result.name) {
+        try { await this.send_command('-var-delete', root_result.name); } catch { /* ignore */ }
+      }
+    }
+
+    return { nodes: Array.from(nodes.values()), edges };
+  }
+
+  /**
+   * Extract the individual child={...} blocks from a
+   * -var-list-children response.
+   */
+  private parse_child_blocks(raw: string): string[] {
+    const blocks: string[] = [];
+    const child_regex = /child=\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
+    let match: RegExpExecArray | null;
+    while ((match = child_regex.exec(raw)) !== null) {
+      blocks.push(match[1]);
+    }
+    return blocks;
+  }
+
+  /**
+   * Ask GDB for the address of a C expression via 'print &(expr)' and
+   * return the hex address (or '' if it can't be determined).
+   */
+  private async get_address_of(c_expr: string): Promise<string> {
+    try {
+      const out = await this.send_console_capture('print &(' + c_expr + ')');
+      const addr_match = out.match(/0x[0-9a-fA-F]+/);
+      return addr_match ? addr_match[0] : '';
+    } catch {
+      return '';
     }
   }
 }

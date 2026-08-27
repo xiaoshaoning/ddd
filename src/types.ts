@@ -40,6 +40,7 @@ export interface GDBAPI {
   list_breakpoints: () => Promise<Breakpoint[]>;
   set_watchpoint: (expression: string) => Promise<{ id: string; expression: string } | null>;
   list_watchpoints: () => Promise<{ id: string; expression: string; type: string }[]>;
+  extract_graph: (expression: string, max_depth?: number) => Promise<DataGraph | null>;
   get_variables: () => Promise<Variable[]>;
   evaluate_expression: (expression: string) => Promise<{ value: string; type: string } | null>;
   get_stack_frames: () => Promise<StackFrame[]>;
@@ -55,6 +56,31 @@ export interface GDBAPI {
   on_exited: (callback: () => void) => () => void;
   open_file_dialog: () => Promise<string | null>;
   send_cli_command: (command: string) => Promise<string>;
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  fields: FieldInfo[];
+  address: string;
+  type_name: string;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+}
+
+export interface FieldInfo {
+  name: string;
+  value: string;
+  type: string;
+}
+
+export interface DataGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 declare global {

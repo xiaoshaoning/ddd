@@ -845,3 +845,80 @@ body {
 .gdb-shell-input::placeholder {
   color: var(--text-muted);
 }
+
+/* ---- Graph Viewer ---- */
+.graph-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.graph-viewer svg {
+  flex: 1;
+}
+
+.graph-loading,
+.graph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+}
+
+.graph-empty .hint {
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.graph-controls {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.graph-expr-input {
+  flex: 1;
+  padding: 3px 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: 'Consolas', monospace;
+  font-size: var(--font-size-small);
+  border-radius: 3px;
+  outline: none;
+}
+
+.graph-expr-input:focus {
+  border-color: var(--accent);
+}
+
+.graph-expr-input::placeholder {
+  color: var(--text-muted);
+}
+
+.graph-viz-btn {
+  padding: 3px 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.graph-viz-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.graph-viz-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

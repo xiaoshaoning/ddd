@@ -24,6 +24,7 @@ export interface GDBAPI {
   get_source_file_path: () => Promise<string | null>;
   get_breakpoint_locations: () => Promise<Set<number>>;
   send_cli_command: (command: string) => Promise<string>;
+  extract_graph: (expression: string, max_depth?: number) => Promise<{ nodes: { id: string; label: string; fields: { name: string; value: string; type: string }[]; address: string; type_name: string }[]; edges: { source: string; target: string; label: string }[] } | null>;
   on_output: (callback: (data: string) => void) => () => void;
   on_stopped: (callback: (info: { reason: string; file?: string; line?: number }) => void) => () => void;
   on_running: (callback: () => void) => () => void;
@@ -55,6 +56,7 @@ const api: GDBAPI = {
   get_source_file_path: () => ipcRenderer.invoke('gdb:get_source_file_path'),
   get_breakpoint_locations: () => ipcRenderer.invoke('gdb:get_breakpoint_locations'),
   send_cli_command: (command: string) => ipcRenderer.invoke('gdb:send_cli_command', command),
+  extract_graph: (expression, max_depth) => ipcRenderer.invoke('gdb:extract_graph', expression, max_depth),
   on_output: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
     ipcRenderer.on('gdb:output', handler);

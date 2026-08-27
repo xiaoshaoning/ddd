@@ -214,6 +214,25 @@ class MockGDBAPI implements GDBAPI {
     return [...this.watchpoints];
   }
 
+  async extract_graph(_expression: string, _max_depth?: number) {
+    // Return a mock binary tree for demo
+    return {
+      nodes: [
+        { id: 'n0', label: '42', fields: [], address: '0x1000', type_name: 'Node' },
+        { id: 'n1', label: '15', fields: [], address: '0x1008', type_name: 'Node' },
+        { id: 'n2', label: '67', fields: [], address: '0x1010', type_name: 'Node' },
+        { id: 'n3', label: '3', fields: [], address: '0x1018', type_name: 'Node' },
+        { id: 'n4', label: '99', fields: [], address: '0x1020', type_name: 'Node' },
+      ],
+      edges: [
+        { source: 'n0', target: 'n1', label: 'left' },
+        { source: 'n0', target: 'n2', label: 'right' },
+        { source: 'n1', target: 'n3', label: 'left' },
+        { source: 'n2', target: 'n4', label: 'right' },
+      ],
+    };
+  }
+
   private add_listener(event: string, callback: Listener): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);

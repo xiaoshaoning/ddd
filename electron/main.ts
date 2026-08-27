@@ -157,6 +157,12 @@ ipcMain.handle('gdb:send_cli_command', async (_event, command: string) => {
   return gdbController?.send_cli_command(command) || 'GDB not running';
 });
 
+ipcMain.handle('gdb:extract_graph', async (_event, expression: string, max_depth?: number) => {
+  try {
+    return await gdbController?.extract_graph(expression, max_depth || 10, 200);
+  } catch { return null; }
+});
+
 ipcMain.handle('gdb:set_watchpoint', async (_event, expression: string) => {
   try { return await gdbController?.set_watchpoint(expression); } catch { return null; }
 });
