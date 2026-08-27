@@ -200,7 +200,10 @@ class MockGDBAPI implements GDBAPI {
 
   async send_cli_command(command: string): Promise<string> {
     console.log('[Mock] CLI command:', command);
-    return '(mock) ' + command + '\n= 42';
+    // Emit output so the GDB shell shows a live transcript in browser mode
+    const response = '(mock) ' + command + '\n= 42';
+    this.emit('output', response + '\n');
+    return response;
   }
 
   async set_watchpoint(expression: string): Promise<{ id: string; expression: string } | null> {

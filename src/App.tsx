@@ -20,6 +20,19 @@ function get_initial_theme(): Theme {
   return 'biogoo';
 }
 
+// Whether a file belongs to system code (library/CRT/OS) rather than the
+// user's program. Keep in sync with is_system_path in
+// electron/gdb/gdb-controller.ts.
+const is_system_path = (file_path: string): boolean => {
+  const normalized = file_path.replace(/\\/g, '/').toLowerCase();
+  const markers = [
+    '/usr/', '/build/', '/crt/',
+    '/windows/system32/', '/windows/syswow64/',
+    'mingw', 'msys', 'dllcrt',
+  ];
+  return markers.some(m => normalized.includes(m)) || normalized.endsWith('.dll');
+};
+
 function App(): React.ReactElement {
   const [theme, set_theme] = useState<Theme>(get_initial_theme);
   const [debug_state, set_debug_state] = useState<DebugState>('idle');
@@ -35,6 +48,8 @@ function App(): React.ReactElement {
   const [graph_data, set_graph_data] = useState<DataGraph | null>(null);
   const [graph_loading, set_graph_loading] = useState(false);
   const [graph_expr, set_graph_expr] = useState('');
+  const [graph_layout, set_graph_layout] = useState<'auto' | 'tree' | 'force'>('auto');
+  const [graph_depth, set_graph_depth] = useState(10);
   const [graph_error, set_graph_error] = useState('');
   const [status_text, set_status_text] = useState('Ready. Open a program to start debugging.');
   const [gdb_output_lines, set_gdb_output_lines] = useState<string[]>([]);
@@ -48,6 +63,13 @@ function App(): React.ReactElement {
 
   // Track last debug action to distinguish step-into from step-over
   const last_action_ref = useRef<'step_into' | 'other'>('other');
+
+  // Last successfully visualized expression, so the graph can auto-refresh
+  // after each stop without depending on the (possibly edited) input box
+  const last_viz_expr_ref = useRef('');
+  const graph_depth_ref = useRef(graph_depth);
+  graph_depth_ref.current = graph_depth;
+  const extract_graph_ref = useRef<(expr?: string) => Promise<void>>(async () => {});
 
   // Apply theme to document
   useEffect(() => {
@@ -92,13 +114,8 @@ function App(): React.ReactElement {
         return;
       }
 
-      // Detect if we stepped into system code (past end of user program)
-      const is_system_file = info.file &&
-        (info.file.includes('msys64') ||
-         info.file.includes('mingw') ||
-         info.file.includes('/crt/') ||
-         info.file.includes('/build/') ||
-         info.file.includes('/usr/'));
+      // Detect if we stepped into system code (library/CRT/OS)
+      const is_system_file = info.file ? is_system_path(info.file) : false;
 
       if (is_system_file) {
         if (last_action_ref.current === 'step_into') {
@@ -150,10 +167,7 @@ function App(): React.ReactElement {
       // Refresh state after stopping at breakpoint
       try {
         const loc = await api.get_current_location();
-        if (loc && loc.file && loc.file !== source_file &&
-            !loc.file.includes('msys64') &&
-            !loc.file.includes('mingw') &&
-            !loc.file.includes('/crt/')) {
+        if (loc && loc.file && loc.file !== source_file && !is_system_path(loc.file)) {
           set_source_file(loc.file);
           const code = await api.get_source(loc.file);
           if (code) {
@@ -164,6 +178,11 @@ function App(): React.ReactElement {
       } catch { /* ignore */ }
 
       refresh_debug_info();
+
+      // Auto-refresh a displayed data structure graph after each stop
+      if (last_viz_expr_ref.current) {
+        extract_graph_ref.current(last_viz_expr_ref.current);
+      }
     });
 
     const unsub_running = api.on_running(() => {
@@ -258,6 +277,7 @@ function App(): React.ReactElement {
     set_graph_data(null);
     set_graph_expr('');
     set_graph_error('');
+    last_viz_expr_ref.current = '';
     set_status_text('Debug session ended.');
   };
 
@@ -285,16 +305,18 @@ function App(): React.ReactElement {
     }
   };
 
-  const extract_graph_data = async () => {
-    const expr = graph_expr.trim();
+  const extract_graph_data = async (expr_override?: string) => {
+    const expr = (expr_override ?? graph_expr).trim();
     if (!expr) return;
     set_graph_loading(true);
     set_graph_error('');
     try {
-      const data = await api.extract_graph(expr, 10);
+      const data = await api.extract_graph(expr, graph_depth_ref.current);
       set_graph_data(data);
       if (!data || data.nodes.length === 0) {
         set_graph_error('No structure found for: ' + expr);
+      } else {
+        last_viz_expr_ref.current = expr;
       }
     } catch {
       set_graph_error('Failed to extract graph');
@@ -302,6 +324,7 @@ function App(): React.ReactElement {
     }
     set_graph_loading(false);
   };
+  extract_graph_ref.current = extract_graph_data;
 
   // ---- Keyboard shortcuts ----
   useEffect(() => {
@@ -428,9 +451,28 @@ function App(): React.ReactElement {
                       placeholder="Expression, e.g. root, head, tree"
                       spellCheck={false}
                     />
+                    <select
+                      className="graph-layout-select"
+                      value={graph_layout}
+                      onChange={(e) => set_graph_layout(e.target.value as 'auto' | 'tree' | 'force')}
+                      title="Layout algorithm"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="tree">Tree</option>
+                      <option value="force">Force</option>
+                    </select>
+                    <input
+                      type="number"
+                      className="graph-depth-input"
+                      min={1}
+                      max={50}
+                      value={graph_depth}
+                      onChange={(e) => set_graph_depth(Math.min(50, Math.max(1, parseInt(e.target.value) || 1)))}
+                      title="Max depth"
+                    />
                     <button
                       className="graph-viz-btn"
-                      onClick={extract_graph_data}
+                      onClick={() => extract_graph_data()}
                       disabled={graph_loading || !graph_expr.trim()}
                     >
                       {graph_loading ? '...' : 'Visualize'}
@@ -439,7 +481,7 @@ function App(): React.ReactElement {
                   {graph_error && (
                     <div className="graph-empty"><p>{graph_error}</p></div>
                   )}
-                  <GraphViewer graph={graph_data} loading={graph_loading} />
+                  <GraphViewer graph={graph_data} loading={graph_loading} layout={graph_layout} />
                 </div>
               )}
             </div>

@@ -15,6 +15,7 @@ A graphical debugger frontend for [GDB](https://www.gnu.org/software/gdb/) (GNU 
 - **Variable Hover Tooltips** — Hover any variable name to see its value and type
 - **Watchpoints** — Watch variables and auto-refresh values on every stop
 - **Memory Viewer** — Hex dump and disassembly at arbitrary addresses
+- **Data Structure Visualization** — Visualize linked structures (linked lists, trees, graphs) as an interactive graph with pan/zoom, drag, and hover tooltips showing field details; auto-refreshes on every stop
 - **GDB CLI Shell** — Interactive GDB command input at the bottom of the window
 - **biogoo Color Scheme** — Default light theme based on the [biogoo Vim color scheme](https://github.com/bdesham/biogoo); toggle to dark mode
 - **Font Size Controls** — Adjustable from 10-72px (default 24px)
@@ -90,6 +91,7 @@ gcc -g -o my_program my_program.c
 | **Breakpoints** | Breakpoint list with file and line |
 | **Memory** | Hex dump / disassembly viewer |
 | **Watch** | Watch expressions with auto-refreshing values |
+| **Viz** | Data structure graph (enter an expression, pick Tree/Force layout and max depth)
 
 ### GDB Shell
 
@@ -118,8 +120,15 @@ Pre-compiled test programs in `tests/`:
 ## Running Tests
 
 ```bash
-npm test                # 33 headless browser tests
+npm test                # 42 headless browser tests
 npx playwright test --ui  # Interactive test runner
+```
+
+On a fresh machine, install the Playwright browsers first (the CDN can be slow,
+so be patient):
+
+```bash
+npx playwright install chromium
 ```
 
 ## Build from Source
@@ -137,6 +146,7 @@ ddd/
 ├── electron/                  # Electron main process
 │   ├── main.ts                # Window, IPC, single-instance lock
 │   ├── preload.ts             # contextBridge API
+│   ├── gdb-api.ts             # Shared GDB API types (also used by renderer)
 │   └── gdb/gdb-controller.ts  # GDB/MI protocol engine
 ├── src/                       # React renderer
 │   ├── App.tsx                # Layout and state machine
@@ -149,10 +159,11 @@ ddd/
 │       ├── VariableInspector.tsx   # Variables + call stack
 │       ├── MemoryViewer.tsx        # Hex dump / disassembly
 │       ├── WatchpointManager.tsx   # Watch expressions
+│       ├── GraphViewer.tsx         # D3 graph with pan/zoom and tooltips
 │       └── GDBShell.tsx            # Interactive GDB CLI
 ├── scripts/                   # Dev launchers
-├── tests/                     # 33 headless tests + C test programs
-├── docs/                      # Usage guide + step behavior spec
+├── tests/                     # Playwright tests + C test programs
+├── docs/                      # Usage guide + step behavior spec + data viz design
 └── package.json
 ```
 
@@ -160,6 +171,7 @@ ddd/
 
 - [Usage Guide](docs/USAGE.md)
 - [Step Button Behavior Specification](docs/STEP_BEHAVIOR_SPEC.md)
+- [Data Structure Visualization Design](docs/DATA_VIZ_DESIGN.md)
 
 ## Coding Standards
 

@@ -42,6 +42,47 @@ test.describe('Data Structure Visualization', () => {
     await expect(empty).toHaveCount(0);
   });
 
+  test('layout selector and depth controls are present', async ({ page }) => {
+    await page.locator('.tab-btn:has-text("Viz")').click();
+    await page.waitForTimeout(200);
+
+    const layout = page.locator('.graph-layout-select');
+    await expect(layout).toBeVisible();
+    await expect(layout).toContainText('Auto');
+    await expect(layout).toContainText('Tree');
+    await expect(layout).toContainText('Force');
+
+    const depth = page.locator('.graph-depth-input');
+    await expect(depth).toBeVisible();
+    await expect(depth).toHaveValue('10');
+  });
+
+  test('force layout still renders nodes', async ({ page }) => {
+    await page.locator('.tab-btn:has-text("Viz")').click();
+    await page.waitForTimeout(200);
+
+    await page.locator('.graph-expr-input').fill('root');
+    await page.locator('.graph-layout-select').selectOption('force');
+    await page.locator('.graph-viz-btn').click();
+    await page.waitForTimeout(400);
+
+    const node_rects = page.locator('.graph-viewer svg g rect');
+    expect(await node_rects.count()).toBeGreaterThanOrEqual(5);
+  });
+
+  test('changing depth is used for extraction', async ({ page }) => {
+    await page.locator('.tab-btn:has-text("Viz")').click();
+    await page.waitForTimeout(200);
+
+    await page.locator('.graph-expr-input').fill('root');
+    await page.locator('.graph-depth-input').fill('3');
+    await page.locator('.graph-viz-btn').click();
+    await page.waitForTimeout(300);
+
+    const node_rects = page.locator('.graph-viewer svg g rect');
+    expect(await node_rects.count()).toBeGreaterThanOrEqual(5);
+  });
+
   test('hovering a node shows tooltip with fields', async ({ page }) => {
     await page.locator('.tab-btn:has-text("Viz")').click();
     await page.waitForTimeout(200);

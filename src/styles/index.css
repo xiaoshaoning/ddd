@@ -960,6 +960,26 @@ body {
   color: var(--text-muted);
 }
 
+.graph-layout-select,
+.graph-depth-input {
+  padding: 3px 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  border-radius: 3px;
+  outline: none;
+}
+
+.graph-layout-select:focus,
+.graph-depth-input:focus {
+  border-color: var(--accent);
+}
+
+.graph-depth-input {
+  width: 48px;
+}
+
 .graph-viz-btn {
   padding: 3px 10px;
   background: var(--accent);

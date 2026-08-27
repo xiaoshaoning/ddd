@@ -5,6 +5,7 @@ import type { DataGraph, GraphNode, FieldInfo } from '../types';
 interface GraphViewerProps {
   graph: DataGraph | null;
   loading: boolean;
+  layout: 'auto' | 'tree' | 'force';
 }
 
 interface TooltipState {
@@ -32,7 +33,7 @@ function is_null_pointer(field: FieldInfo): boolean {
 }
 
 export function GraphViewer(props: GraphViewerProps): React.ReactElement {
-  const { graph, loading } = props;
+  const { graph, loading, layout } = props;
   const svg_ref = useRef<SVGSVGElement>(null);
   const container_ref = useRef<HTMLDivElement>(null);
   const [tooltip, set_tooltip] = useState<TooltipState | null>(null);
@@ -69,17 +70,19 @@ export function GraphViewer(props: GraphViewerProps): React.ReactElement {
     };
     const handle_leave = () => set_tooltip(null);
 
-    // Build hierarchy for tree layout if it's a tree, else use force
-    const is_tree = graph.edges.every(e =>
+    // Tree layout requires a single-parent structure; otherwise (cycles,
+    // shared children) fall back to force layout even if tree was requested.
+    const is_tree_candidate = graph.edges.every(e =>
       graph.edges.filter(o => o.target === e.target).length <= 1
     ) && graph.nodes.length > 0;
+    const use_tree = is_tree_candidate && (layout === 'tree' || layout === 'auto');
 
-    if (is_tree && graph.nodes.length > 0) {
+    if (use_tree) {
       render_tree(graph, g, width, height, handle_hover, handle_leave);
     } else {
       render_force(graph, g, width, height, handle_hover, handle_leave);
     }
-  }, [graph]);
+  }, [graph, layout]);
 
   if (loading) {
     return <div className="graph-viewer"><div className="graph-loading">Extracting graph...</div></div>;
